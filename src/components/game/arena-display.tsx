@@ -126,12 +126,11 @@ export default function ArenaDisplay() {
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x2A2A2E);
-    // Adjust fog to start a bit closer and end a bit sooner to make tall walls more prominent
     scene.fog = new THREE.Fog(0x2A2A2E, GROUND_SIZE / 6, GROUND_SIZE * 0.75);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
-    camera.position.set(0, 1.7, 5);
+    camera.position.set(0, 1.7, 5); // Start slightly further back to see initial area
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -151,8 +150,8 @@ export default function ArenaDisplay() {
     const pausedMessageElement = document.getElementById('paused-message');
 
 
-    if (instructionsElement && blockerElement) { // Ensure blocker also exists
-      blockerElement.addEventListener('click', clickToLockHandler); // Attach to blocker for broader click area
+    if (instructionsElement && blockerElement) { 
+      blockerElement.addEventListener('click', clickToLockHandler); 
     }
     controls.addEventListener('lock', onLockHandler);
     controls.addEventListener('unlock', onUnlockHandler);
@@ -183,7 +182,7 @@ export default function ArenaDisplay() {
     directionalLight.shadow.mapSize.height = 2048;
     directionalLight.shadow.camera.near = 0.5;
     directionalLight.shadow.camera.far = 500;
-    directionalLight.shadow.camera.left = -GROUND_SIZE; // Adjusted to cover larger area if needed
+    directionalLight.shadow.camera.left = -GROUND_SIZE; 
     directionalLight.shadow.camera.right = GROUND_SIZE;
     directionalLight.shadow.camera.top = GROUND_SIZE;
     directionalLight.shadow.camera.bottom = -GROUND_SIZE;
@@ -196,9 +195,8 @@ export default function ArenaDisplay() {
     ground.receiveShadow = true;
     scene.add(ground);
 
-    const wallHeight = GROUND_SIZE / 3; // Made walls significantly taller
-    const wallThickness = 5; // Made walls thicker for more presence
-    // Changed wall material to be very dark, like an abyss or impenetrable barrier
+    const wallHeight = GROUND_SIZE / 3; 
+    const wallThickness = 5; 
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x1A1A1D, roughness: 0.95, metalness: 0.1 }); 
     
     const wallN = new THREE.Mesh(new THREE.BoxGeometry(GROUND_SIZE + wallThickness * 2, wallHeight, wallThickness), wallMaterial);
@@ -217,34 +215,58 @@ export default function ArenaDisplay() {
     wallW.position.set(-GROUND_SIZE/2 - wallThickness/2, wallHeight/2, 0);
     wallW.castShadow = true; wallW.receiveShadow = true; scene.add(wallW);
 
+    // District Materials
+    const residentialMaterial = new THREE.MeshStandardMaterial({ color: 0xA0A0A0, roughness: 0.8, metalness: 0.2 });
+    const commercialMaterial = new THREE.MeshStandardMaterial({ color: 0x708090, roughness: 0.6, metalness: 0.4 });
+    const industrialMaterial = new THREE.MeshStandardMaterial({ color: 0x4A4A4A, roughness: 0.9, metalness: 0.6 });
+    const downtownMaterial = new THREE.MeshStandardMaterial({ color: 0x333344, roughness: 0.4, metalness: 0.7 });
 
-    const obstacleMaterial = new THREE.MeshStandardMaterial({ color: 0xCD7F32, roughness: 0.5, metalness: 0.5 });
-    for (let i = 0; i < 5; i++) {
-      const size = Math.random() * 4 + 2;
-      const obstacle = new THREE.Mesh(new THREE.BoxGeometry(size, size * 1.5, size), obstacleMaterial);
-      obstacle.position.set(
-        (Math.random() - 0.5) * (GROUND_SIZE - 10),
-        size * 0.75,
-        (Math.random() - 0.5) * (GROUND_SIZE - 10)
-      );
-      obstacle.castShadow = true;
-      obstacle.receiveShadow = true;
-      scene.add(obstacle);
-    }
+    const buildingOffset = GROUND_SIZE / 4; // Place districts roughly in quadrants
+
+    // Residential Area (NW Quadrant: x < 0, z < 0)
+    const house1 = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 5), residentialMaterial);
+    house1.position.set(-buildingOffset, 1.5, -buildingOffset + 5);
+    house1.castShadow = true; house1.receiveShadow = true; scene.add(house1);
+
+    const house2 = new THREE.Mesh(new THREE.BoxGeometry(5, 2.5, 4), residentialMaterial);
+    house2.position.set(-buildingOffset + 8, 1.25, -buildingOffset -2);
+    house2.castShadow = true; house2.receiveShadow = true; scene.add(house2);
     
-    const carMaterial = new THREE.MeshStandardMaterial({ color: 0x3333CC, roughness: 0.2, metalness: 0.8 });
-    const car = new THREE.Mesh(new THREE.BoxGeometry(4, 1.5, 2), carMaterial);
-    car.position.set(10, 0.75, 10);
-    car.castShadow = true;
-    car.receiveShadow = true;
-    scene.add(car);
-    
-    const storeMaterial = new THREE.MeshStandardMaterial({ color: 0xFFD700, roughness: 0.3, metalness: 0.7 });
-    const gunStore = new THREE.Mesh(new THREE.BoxGeometry(5, 4, 3), storeMaterial);
-    gunStore.position.set(-15, 2, -15);
-    gunStore.castShadow = true;
-    gunStore.receiveShadow = true;
-    scene.add(gunStore);
+    const apartmentBlock = new THREE.Mesh(new THREE.BoxGeometry(6, 8, 5), residentialMaterial);
+    apartmentBlock.position.set(-buildingOffset - 5, 4, -buildingOffset - 8);
+    apartmentBlock.castShadow = true; apartmentBlock.receiveShadow = true; scene.add(apartmentBlock);
+
+    // Commercial Zone (NE Quadrant: x > 0, z < 0)
+    const shop1 = new THREE.Mesh(new THREE.BoxGeometry(7, 5, 6), commercialMaterial);
+    shop1.position.set(buildingOffset, 2.5, -buildingOffset);
+    shop1.castShadow = true; shop1.receiveShadow = true; scene.add(shop1);
+
+    const office1 = new THREE.Mesh(new THREE.BoxGeometry(5, 10, 5), commercialMaterial);
+    office1.position.set(buildingOffset + 10, 5, -buildingOffset + 8);
+    office1.castShadow = true; office1.receiveShadow = true; scene.add(office1);
+
+    // Industrial Sector (SW Quadrant: x < 0, z > 0)
+    const warehouse = new THREE.Mesh(new THREE.BoxGeometry(15, 6, 10), industrialMaterial);
+    warehouse.position.set(-buildingOffset + 5, 3, buildingOffset);
+    warehouse.castShadow = true; warehouse.receiveShadow = true; scene.add(warehouse);
+
+    const factory = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 8), industrialMaterial);
+    const factorySmokestack = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 12, 16), industrialMaterial);
+    factory.position.set(-buildingOffset - 10, 4, buildingOffset + 12);
+    factorySmokestack.position.set(-buildingOffset - 13, 10, buildingOffset + 14); // Position relative to factory
+    factory.castShadow = true; factory.receiveShadow = true; scene.add(factory);
+    factorySmokestack.castShadow = true; factorySmokestack.receiveShadow = true; scene.add(factorySmokestack);
+
+
+    // Downtown Hint (SE Quadrant: x > 0, z > 0)
+    const tallerBuilding1 = new THREE.Mesh(new THREE.BoxGeometry(6, 15, 6), downtownMaterial);
+    tallerBuilding1.position.set(buildingOffset, 7.5, buildingOffset);
+    tallerBuilding1.castShadow = true; tallerBuilding1.receiveShadow = true; scene.add(tallerBuilding1);
+
+    const tallerBuilding2 = new THREE.Mesh(new THREE.BoxGeometry(5, 20, 5), downtownMaterial); // Tallest building
+    tallerBuilding2.position.set(buildingOffset + 10, 10, buildingOffset + 10);
+    tallerBuilding2.castShadow = true; tallerBuilding2.receiveShadow = true; scene.add(tallerBuilding2);
+
 
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
@@ -288,7 +310,6 @@ export default function ArenaDisplay() {
         controlsRef.current.moveForward(-velocity.current.z * delta);
 
         const camPos = controlsRef.current.getObject().position;
-        // Adjusted boundary check to account for thicker walls. Player center should not go beyond inner edge.
         const halfGroundMinusWall = GROUND_SIZE / 2 - wallThickness / 2 - 0.5; 
         camPos.x = Math.max(-halfGroundMinusWall, Math.min(halfGroundMinusWall, camPos.x));
         camPos.z = Math.max(-halfGroundMinusWall, Math.min(halfGroundMinusWall, camPos.z));
@@ -324,7 +345,7 @@ export default function ArenaDisplay() {
                 if (object.geometry) object.geometry.dispose();
                 if (Array.isArray(object.material)) {
                     object.material.forEach(material => material.dispose());
-                } else if (object.material) {
+                } else if (object.material && typeof (object.material as THREE.Material).dispose === 'function') {
                     (object.material as THREE.Material).dispose();
                 }
             }
