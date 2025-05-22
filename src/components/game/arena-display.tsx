@@ -164,7 +164,6 @@ export default function ArenaDisplay() {
     const currentMount = mountRef.current;
 
     const scene = new THREE.Scene();
-    // Initial background and fog will be set by the day/night cycle
     scene.fog = new THREE.Fog(dayColors.fog, GROUND_SIZE / 6, GROUND_SIZE * 0.75);
     scene.background = dayColors.background.clone();
     sceneRef.current = scene;
@@ -325,19 +324,19 @@ export default function ArenaDisplay() {
 
         if (cycleProgress < 0.25) { // Day
           c1 = dayColors; i1 = dayIntensities;
-          c2 = dayColors; i2 = dayIntensities;
-          segmentProgress = 0;
+          c2 = dayColors; i2 = dayIntensities; // Still day, or start of day->dusk
+          segmentProgress = (cycleProgress / 0.25); // Progress within day segment if needed, or 0 for simple day
         } else if (cycleProgress < 0.5) { // Day to Dusk
           c1 = dayColors; i1 = dayIntensities;
           c2 = duskColors; i2 = duskIntensities;
           segmentProgress = (cycleProgress - 0.25) / 0.25;
-        } else if (cycleProgress < 0.75) { // Night (Dusk to Night)
+        } else if (cycleProgress < 0.75) { // Dusk to Night
           c1 = duskColors; i1 = duskIntensities;
           c2 = nightColors; i2 = nightIntensities;
           segmentProgress = (cycleProgress - 0.5) / 0.25;
         } else { // Night to Dawn/Day
           c1 = nightColors; i1 = nightIntensities;
-          c2 = dawnColors; i2 = dawnIntensities; // Transitioning to dawn then day (dawnColors could be dayColors for simpler cycle)
+          c2 = dawnColors; i2 = dawnIntensities; 
           segmentProgress = (cycleProgress - 0.75) / 0.25;
         }
         
@@ -358,7 +357,7 @@ export default function ArenaDisplay() {
         if (rendererRef.current && sceneRef.current && cameraRef.current) {
             rendererRef.current.render(sceneRef.current, cameraRef.current);
         }
-        prevTime.current = time - delta * 1000; // effectively pause time progression for delta calculation
+        prevTime.current = time - delta * 1000; 
         return;
       }
       
@@ -403,29 +402,45 @@ export default function ArenaDisplay() {
       if (controlsRef.current) {
         controlsRef.current.removeEventListener('lock', onLockHandler);
         controlsRef.current.removeEventListener('unlock', onUnlockHandler);
+        if (controlsRef.current.isLocked) { // Check if locked before unlocking
+          controlsRef.current.unlock();
+        }
         controlsRef.current.dispose();
+        controlsRef.current = null;
       }
       if (rendererRef.current) {
          rendererRef.current.dispose();
-         sceneRef.current?.traverse(object => {
-            if (object instanceof THREE.Mesh) {
-                if (object.geometry) object.geometry.dispose();
-                if (Array.isArray(object.material)) {
-                    object.material.forEach(material => material.dispose());
-                } else if (object.material && typeof (object.material as THREE.Material).dispose === 'function') {
-                    (object.material as THREE.Material).dispose();
+         // Dispose scene objects
+         if (sceneRef.current) {
+             sceneRef.current.traverse(object => {
+                if (object instanceof THREE.Mesh) {
+                    if (object.geometry) object.geometry.dispose();
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach(material => material.dispose());
+                    } else if (object.material && typeof (object.material as THREE.Material).dispose === 'function') {
+                        (object.material as THREE.Material).dispose();
+                    }
                 }
-            }
-         });
+             });
+             sceneRef.current = null; // Clear scene ref
+         }
+         rendererRef.current = null; // Clear renderer ref
       }
-      if (mountRef.current && rendererRef.current?.domElement) {
-        if (mountRef.current.contains(rendererRef.current.domElement)) {
-          mountRef.current.removeChild(rendererRef.current.domElement);
-        }
+      if (cameraRef.current) {
+        cameraRef.current = null; // Clear camera ref
+      }
+      if (mountRef.current && rendererRef.current?.domElement) { // This check might be problematic if rendererRef.current is nulled above
+        // Check if mountRef.current still contains the domElement before removing
+        // This part of the cleanup needs to be careful about the order of nulling refs
+        // It's safer to remove the child first if the renderer still exists
+      }
+      // Revised DOM element removal
+      if (mountRef.current && currentMount.contains(renderer.domElement)) { // Use the 'renderer' from the setup scope
+           currentMount.removeChild(renderer.domElement);
       }
     };
-  }, [onKeyDown, onKeyUp, clickToLockHandler, onLockHandler, onUnlockHandler, cycleDuration, dayColors, dayIntensities, duskColors, duskIntensities, nightColors, nightIntensities, dawnColors, dawnIntensities]);
+  }, [onKeyDown, onKeyUp, clickToLockHandler, onLockHandler, onUnlockHandler, cycleDuration, dayColors, dayIntensities, duskColors, duskIntensities, nightColors, nightIntensities, dawnColors, dawnIntensities]); // Dependencies should be stable
 
-  return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" />;
+  return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
 
