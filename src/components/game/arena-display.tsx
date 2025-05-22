@@ -32,7 +32,8 @@ export default function ArenaDisplay() {
     background: new THREE.Color(0x87CEEB), // Sky Blue
     fog: new THREE.Color(0x87CEEB),
   };
-  const daytimeIntensities = { ambient: 0.9, directional: 1.2 };
+  // Increased intensities for a very bright, Minecraft-like sunny day
+  const daytimeIntensities = { ambient: 1.5, directional: 2.0 };
 
 
   const onKeyDown = useCallback((event: KeyboardEvent) => {
@@ -155,7 +156,7 @@ export default function ArenaDisplay() {
     rendererRef.current = renderer;
 
     const controls = new PointerLockControls(camera, renderer.domElement);
-    controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002; // Keep consistent with old sensitivity if needed or adjust
+    controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002;
     scene.add(controls.getObject());
     controlsRef.current = controls;
     
@@ -188,7 +189,7 @@ export default function ArenaDisplay() {
     scene.add(ambientLightRef.current);
 
     directionalLightRef.current = new THREE.DirectionalLight(daytimeColors.directional, daytimeIntensities.directional);
-    directionalLightRef.current.position.set(20, 50, 20); // Positioned high like a sun
+    directionalLightRef.current.position.set(20, 50, 20); 
     directionalLightRef.current.castShadow = true;
     directionalLightRef.current.shadow.mapSize.width = 2048;
     directionalLightRef.current.shadow.mapSize.height = 2048;
@@ -400,13 +401,6 @@ export default function ArenaDisplay() {
              sceneRef.current.traverse(object => {
                 if (object instanceof THREE.Mesh) {
                     if (object.geometry) object.geometry.dispose();
-                    // Material disposal is handled above for shared materials
-                    // For individually created materials (if any), this would be needed:
-                    // if (!Array.isArray(object.material)) {
-                    //   if (object.material && typeof (object.material as THREE.Material).dispose === 'function') {
-                    //      (object.material as THREE.Material).dispose();
-                    //   }
-                    // }
                 }
              });
          }
@@ -423,7 +417,9 @@ export default function ArenaDisplay() {
       ambientLightRef.current = null;
       directionalLightRef.current = null;
     };
+  // Removed the old dayNightCycle logic from dependencies since it's no longer used.
   }, [onKeyDown, onKeyUp, clickToLockHandler, onLockHandler, onUnlockHandler]); 
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
+
