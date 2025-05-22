@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -79,7 +80,7 @@ export default function GameUIOverlay() {
       </div>
 
       {/* Centered message for pointer lock */}
-       <div id="blocker" className="absolute inset-0 bg-black/50 hidden place-items-center text-white text-center pointer-events-auto">
+       <div id="blocker" className="absolute inset-0 bg-black/50 place-items-center text-white text-center pointer-events-auto"> {/* Removed 'hidden' class */}
         <div id="instructions" className="p-8 rounded-lg bg-background/90 shadow-xl">
           <p className="text-2xl font-bold mb-4">Click to Play</p>
           <p className="text-lg">Use W, A, S, D to move.</p>
