@@ -24,41 +24,15 @@ export default function ArenaDisplay() {
 
   const ambientLightRef = useRef<THREE.AmbientLight | null>(null);
   const directionalLightRef = useRef<THREE.DirectionalLight | null>(null);
-  const gameTimeRef = useRef(0);
-  const cycleDuration = 60 * 1000; // 60 seconds for a full cycle
 
-  // Define color and intensity keyframes for the day/night cycle
-  const dayColors = {
+  // Fixed daytime colors and intensities
+  const daytimeColors = {
     ambient: new THREE.Color(0xffffff),
     directional: new THREE.Color(0xffffff),
     background: new THREE.Color(0x87CEEB), // Sky Blue
     fog: new THREE.Color(0x87CEEB),
   };
-  const dayIntensities = { ambient: 0.7, directional: 1.2 };
-
-  const duskColors = {
-    ambient: new THREE.Color(0xFFAC80), // Lighter Orange
-    directional: new THREE.Color(0xFF7040), // Lighter OrangeRed
-    background: new THREE.Color(0x7C6A8A), // Lighter Purple/Orange
-    fog: new THREE.Color(0x7C6A8A),
-  };
-  const duskIntensities = { ambient: 0.6, directional: 1.0 };
-
-  const nightColors = {
-    ambient: new THREE.Color(0x888899), // Lighter grayish blue
-    directional: new THREE.Color(0x9999AA), // Lighter grayish blue
-    background: new THREE.Color(0x444466), // Medium dark blue
-    fog: new THREE.Color(0x444466),
-  };
-  const nightIntensities = { ambient: 0.6, directional: 0.8 }; // Significantly brighter
-
-  const dawnColors = {
-    ambient: new THREE.Color(0xFFD6C1), // Lighter Pink
-    directional: new THREE.Color(0xFFC09A), // Lighter Salmon
-    background: new THREE.Color(0x8A6A7C), // Lighter Pink/Purple
-    fog: new THREE.Color(0x8A6A7C),
-  };
-  const dawnIntensities = { ambient: 0.6, directional: 1.0 };
+  const daytimeIntensities = { ambient: 0.9, directional: 1.2 };
 
 
   const onKeyDown = useCallback((event: KeyboardEvent) => {
@@ -164,8 +138,8 @@ export default function ArenaDisplay() {
     const currentMount = mountRef.current;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(dayColors.fog, GROUND_SIZE / 6, GROUND_SIZE * 0.75);
-    scene.background = dayColors.background.clone();
+    scene.fog = new THREE.Fog(daytimeColors.fog, GROUND_SIZE / 6, GROUND_SIZE * 0.75);
+    scene.background = daytimeColors.background.clone();
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
@@ -181,6 +155,7 @@ export default function ArenaDisplay() {
     rendererRef.current = renderer;
 
     const controls = new PointerLockControls(camera, renderer.domElement);
+    controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002; // Keep consistent with old sensitivity if needed or adjust
     scene.add(controls.getObject());
     controlsRef.current = controls;
     
@@ -209,11 +184,11 @@ export default function ArenaDisplay() {
       isPaused.current = false; 
     }
     
-    ambientLightRef.current = new THREE.AmbientLight(dayColors.ambient, dayIntensities.ambient);
+    ambientLightRef.current = new THREE.AmbientLight(daytimeColors.ambient, daytimeIntensities.ambient);
     scene.add(ambientLightRef.current);
 
-    directionalLightRef.current = new THREE.DirectionalLight(dayColors.directional, dayIntensities.directional);
-    directionalLightRef.current.position.set(20, 30, 20);
+    directionalLightRef.current = new THREE.DirectionalLight(daytimeColors.directional, daytimeIntensities.directional);
+    directionalLightRef.current.position.set(20, 50, 20); // Positioned high like a sun
     directionalLightRef.current.castShadow = true;
     directionalLightRef.current.shadow.mapSize.width = 2048;
     directionalLightRef.current.shadow.mapSize.height = 2048;
@@ -354,43 +329,6 @@ export default function ArenaDisplay() {
       const time = performance.now();
       const delta = (time - prevTime.current) / 1000;
       
-      if (!isPaused.current) {
-        gameTimeRef.current = (gameTimeRef.current + delta * 1000) % cycleDuration;
-        const cycleProgress = gameTimeRef.current / cycleDuration; 
-
-        let c1, i1, c2, i2, segmentProgress;
-
-        if (cycleProgress < 0.25) { 
-          c1 = dayColors; i1 = dayIntensities;
-          c2 = duskColors; i2 = duskIntensities; 
-          segmentProgress = cycleProgress / 0.25;
-        } else if (cycleProgress < 0.5) { 
-          c1 = duskColors; i1 = duskIntensities;
-          c2 = nightColors; i2 = nightIntensities;
-          segmentProgress = (cycleProgress - 0.25) / 0.25;
-        } else if (cycleProgress < 0.75) { 
-          c1 = nightColors; i1 = nightIntensities;
-          c2 = dawnColors; i2 = dawnIntensities;
-          segmentProgress = (cycleProgress - 0.5) / 0.25;
-        } else { 
-          c1 = dawnColors; i1 = dawnIntensities;
-          c2 = dayColors; i2 = dayIntensities; 
-          segmentProgress = (cycleProgress - 0.75) / 0.25;
-        }
-        
-        if (ambientLightRef.current && directionalLightRef.current && sceneRef.current?.fog && sceneRef.current?.background) {
-          ambientLightRef.current.color.lerpColors(c1.ambient, c2.ambient, segmentProgress);
-          ambientLightRef.current.intensity = THREE.MathUtils.lerp(i1.ambient, i2.ambient, segmentProgress);
-          
-          directionalLightRef.current.color.lerpColors(c1.directional, c2.directional, segmentProgress);
-          directionalLightRef.current.intensity = THREE.MathUtils.lerp(i1.directional, i2.directional, segmentProgress);
-
-          (sceneRef.current.background as THREE.Color).lerpColors(c1.background, c2.background, segmentProgress);
-          (sceneRef.current.fog as THREE.Fog).color.lerpColors(c1.fog, c2.fog, segmentProgress);
-        }
-      }
-
-
       if (isPaused.current) {
         if (rendererRef.current && sceneRef.current && cameraRef.current) {
             rendererRef.current.render(sceneRef.current, cameraRef.current);
@@ -448,6 +386,13 @@ export default function ArenaDisplay() {
 
       allTextures.forEach(texture => texture.dispose());
       placeholderBottomMaterial.dispose();
+      residentialMaterials.forEach(material => material.dispose());
+      commercialMaterials.forEach(material => material.dispose());
+      industrialMaterials.forEach(material => material.dispose());
+      downtownMaterials.forEach(material => material.dispose());
+      smokestackMaterial.dispose();
+      boundaryWallMaterial.dispose();
+      texturedGroundMaterial.dispose();
       
       if (rendererRef.current) {
          rendererRef.current.dispose();
@@ -455,15 +400,13 @@ export default function ArenaDisplay() {
              sceneRef.current.traverse(object => {
                 if (object instanceof THREE.Mesh) {
                     if (object.geometry) object.geometry.dispose();
-                    if (Array.isArray(object.material)) {
-                        object.material.forEach(material => {
-                          if (material && typeof material.dispose === 'function') {
-                            material.dispose();
-                          }
-                        });
-                    } else if (object.material && typeof (object.material as THREE.Material).dispose === 'function') {
-                        (object.material as THREE.Material).dispose();
-                    }
+                    // Material disposal is handled above for shared materials
+                    // For individually created materials (if any), this would be needed:
+                    // if (!Array.isArray(object.material)) {
+                    //   if (object.material && typeof (object.material as THREE.Material).dispose === 'function') {
+                    //      (object.material as THREE.Material).dispose();
+                    //   }
+                    // }
                 }
              });
          }
@@ -480,8 +423,7 @@ export default function ArenaDisplay() {
       ambientLightRef.current = null;
       directionalLightRef.current = null;
     };
-  }, [onKeyDown, onKeyUp, clickToLockHandler, onLockHandler, onUnlockHandler, cycleDuration, dayColors, dayIntensities, duskColors, duskIntensities, nightColors, nightIntensities, dawnColors, dawnIntensities]); 
+  }, [onKeyDown, onKeyUp, clickToLockHandler, onLockHandler, onUnlockHandler]); 
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
-
