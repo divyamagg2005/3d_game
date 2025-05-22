@@ -269,11 +269,11 @@ export default function ArenaDisplay() {
       }
     };
 
-    const groundTexture = textureLoader.load('/textures/ground-texture.jpeg', undefined, undefined, textureLoadError('ground-texture.jpeg'));
-    const roofTexture = textureLoader.load('/textures/roof-texture.jpeg', undefined, undefined, textureLoadError('roof-texture.jpeg'));
-    const wallTexture1 = textureLoader.load('/textures/wall-texture-1.jpeg', undefined, undefined, textureLoadError('wall-texture-1.jpeg'));
-    const wallTexture2 = textureLoader.load('/textures/wall-texture-2.jpeg', undefined, undefined, textureLoadError('wall-texture-2.jpeg'));
-    const wallTexture3 = textureLoader.load('/textures/wall-texture-3.jpeg', undefined, undefined, textureLoadError('wall-texture-3.jpeg'));
+    const groundTexture = textureLoader.load('/textures/ground-texture.jpg', undefined, undefined, textureLoadError('ground-texture.jpg'));
+    const roofTexture = textureLoader.load('/textures/roof-texture.jpg', undefined, undefined, textureLoadError('roof-texture.jpg'));
+    const wallTexture1 = textureLoader.load('/textures/wall-texture-1.jpg', undefined, undefined, textureLoadError('wall-texture-1.jpg'));
+    const wallTexture2 = textureLoader.load('/textures/wall-texture-2.jpg', undefined, undefined, textureLoadError('wall-texture-2.jpg'));
+    const wallTexture3 = textureLoader.load('/textures/wall-texture-3.jpg', undefined, undefined, textureLoadError('wall-texture-3.jpg'));
 
 
     const allTextures = [groundTexture, roofTexture, wallTexture1, wallTexture2, wallTexture3];
@@ -570,3 +570,4 @@ export default function ArenaDisplay() {
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
+
