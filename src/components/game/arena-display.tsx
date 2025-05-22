@@ -37,28 +37,28 @@ export default function ArenaDisplay() {
   const dayIntensities = { ambient: 0.7, directional: 1.2 };
 
   const duskColors = {
-    ambient: new THREE.Color(0xFF8C00), // DarkOrange
-    directional: new THREE.Color(0xFF4500), // OrangeRed
-    background: new THREE.Color(0x4A345E), // Dark Purple/Orange
-    fog: new THREE.Color(0x4A345E),
+    ambient: new THREE.Color(0xFFAC80), // Lighter Orange
+    directional: new THREE.Color(0xFF7040), // Lighter OrangeRed
+    background: new THREE.Color(0x7C6A8A), // Lighter Purple/Orange
+    fog: new THREE.Color(0x7C6A8A),
   };
-  const duskIntensities = { ambient: 0.4, directional: 0.8 };
+  const duskIntensities = { ambient: 0.6, directional: 1.0 };
 
   const nightColors = {
-    ambient: new THREE.Color(0x101020), // Dark Blue
-    directional: new THREE.Color(0x202040), // Darker Blue (moonlight)
-    background: new THREE.Color(0x00001A), // Very Dark Blue
-    fog: new THREE.Color(0x00001A),
+    ambient: new THREE.Color(0x888899), // Lighter grayish blue
+    directional: new THREE.Color(0x9999AA), // Lighter grayish blue
+    background: new THREE.Color(0x444466), // Medium dark blue
+    fog: new THREE.Color(0x444466),
   };
-  const nightIntensities = { ambient: 0.2, directional: 0.3 };
+  const nightIntensities = { ambient: 0.6, directional: 0.8 }; // Significantly brighter
 
-  const dawnColors = { // Similar to dusk, but can be different
-    ambient: new THREE.Color(0xFFB6C1), // LightPink
-    directional: new THREE.Color(0xFFA07A), // LightSalmon
-    background: new THREE.Color(0x5E344A), // Dark Pink/Purple
-    fog: new THREE.Color(0x5E344A),
+  const dawnColors = {
+    ambient: new THREE.Color(0xFFD6C1), // Lighter Pink
+    directional: new THREE.Color(0xFFC09A), // Lighter Salmon
+    background: new THREE.Color(0x8A6A7C), // Lighter Pink/Purple
+    fog: new THREE.Color(0x8A6A7C),
   };
-  const dawnIntensities = { ambient: 0.4, directional: 0.8 };
+  const dawnIntensities = { ambient: 0.6, directional: 1.0 };
 
 
   const onKeyDown = useCallback((event: KeyboardEvent) => {
@@ -239,30 +239,30 @@ export default function ArenaDisplay() {
       texture.wrapT = THREE.RepeatWrapping;
     });
 
-    groundTexture.repeat.set(GROUND_SIZE / 10, GROUND_SIZE / 10); // Repeat texture every 10 units on ground
+    groundTexture.repeat.set(GROUND_SIZE / 10, GROUND_SIZE / 10); 
 
     // Materials
     const texturedGroundMaterial = new THREE.MeshStandardMaterial({ 
       map: groundTexture, 
-      roughness: 0.9, // Keep some PBR properties
+      roughness: 0.9, 
       metalness: 0.1 
     });
     
     const placeholderBottomMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9, metalness: 0.1 });
 
     const makeBuildingFaceMaterials = (wallMap: THREE.Texture, roofMap: THREE.Texture, sideRoughness: number, sideMetalness: number) => [
-      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }), // Right face
-      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }), // Left face
-      new THREE.MeshStandardMaterial({ map: roofMap, roughness: 0.8, metalness: 0.2 }),    // Top face
-      placeholderBottomMaterial,                                                                             // Bottom face
-      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }), // Front face
-      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness })  // Back face
+      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }), 
+      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }), 
+      new THREE.MeshStandardMaterial({ map: roofMap, roughness: 0.8, metalness: 0.2 }),    
+      placeholderBottomMaterial,                                                                             
+      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }), 
+      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness })  
     ];
 
     const residentialMaterials = makeBuildingFaceMaterials(wallTexture1, roofTexture, 0.8, 0.2);
     const commercialMaterials = makeBuildingFaceMaterials(wallTexture2, roofTexture, 0.6, 0.4);
     const industrialMaterials = makeBuildingFaceMaterials(wallTexture3, roofTexture, 0.9, 0.6);
-    const downtownMaterials = makeBuildingFaceMaterials(wallTexture2, roofTexture, 0.4, 0.7); // Using wallTexture2 for downtown
+    const downtownMaterials = makeBuildingFaceMaterials(wallTexture2, roofTexture, 0.4, 0.7); 
     
     const smokestackMaterial = new THREE.MeshStandardMaterial({ map: wallTexture3, roughness: 0.9, metalness: 0.6 });
 
@@ -324,7 +324,7 @@ export default function ArenaDisplay() {
     factory.castShadow = true; factory.receiveShadow = true; scene.add(factory);
     
     const factorySmokestack = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 18, 16), smokestackMaterial); 
-    factorySmokestack.position.set(-buildingOffset - 13.5, 9 + 1.5, buildingOffset + 14); // Adjusted Y position to sit on factory
+    factorySmokestack.position.set(-buildingOffset - 13.5, 9 + 1.5, buildingOffset + 14); 
     factorySmokestack.castShadow = true; factorySmokestack.receiveShadow = true; scene.add(factorySmokestack);
 
 
@@ -446,11 +446,9 @@ export default function ArenaDisplay() {
         controlsRef.current.dispose();
       }
 
-      // Dispose textures
       allTextures.forEach(texture => texture.dispose());
       placeholderBottomMaterial.dispose();
-      // Materials created for building faces will be disposed by the general scene traversal.
-
+      
       if (rendererRef.current) {
          rendererRef.current.dispose();
          if (sceneRef.current) {
@@ -458,7 +456,11 @@ export default function ArenaDisplay() {
                 if (object instanceof THREE.Mesh) {
                     if (object.geometry) object.geometry.dispose();
                     if (Array.isArray(object.material)) {
-                        object.material.forEach(material => material.dispose());
+                        object.material.forEach(material => {
+                          if (material && typeof material.dispose === 'function') {
+                            material.dispose();
+                          }
+                        });
                     } else if (object.material && typeof (object.material as THREE.Material).dispose === 'function') {
                         (object.material as THREE.Material).dispose();
                     }
@@ -467,11 +469,10 @@ export default function ArenaDisplay() {
          }
       }
       
-      if (mountRef.current && rendererRef.current?.domElement && currentMount.contains(renderer.domElement)) {
-           currentMount.removeChild(renderer.domElement);
+      if (mountRef.current && rendererRef.current?.domElement && currentMount.contains(rendererRef.current.domElement)) {
+           currentMount.removeChild(rendererRef.current.domElement);
       }
       
-      // Clear refs
       sceneRef.current = null;
       cameraRef.current = null;
       rendererRef.current = null;
