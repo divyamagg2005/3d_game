@@ -20,7 +20,28 @@ export default function MainLayout({ children }: MainLayoutProps) {
           {/* Navigation can be added here */}
         </div>
       </header>
-      <main className="flex-grow relative">{children}</main>
+      <main className="flex-grow relative flex flex-row">
+        {/* Left Ad Space */}
+        <aside className="w-64 bg-card p-4 flex flex-col items-center justify-center text-muted-foreground border-r border-border/40">
+          <div className="border-2 border-dashed border-muted-foreground/30 p-10 rounded-lg text-center w-full h-full flex flex-col justify-center items-center">
+            <p className="text-lg font-semibold">Ad Space</p>
+            <p className="text-sm">Future advertisement</p>
+          </div>
+        </aside>
+
+        {/* Game Content Area */}
+        <div className="flex-grow flex flex-col overflow-hidden">
+          {children}
+        </div>
+
+        {/* Right Ad Space */}
+        <aside className="w-64 bg-card p-4 flex flex-col items-center justify-center text-muted-foreground border-l border-border/40">
+          <div className="border-2 border-dashed border-muted-foreground/30 p-10 rounded-lg text-center w-full h-full flex flex-col justify-center items-center">
+            <p className="text-lg font-semibold">Ad Space</p>
+            <p className="text-sm">Future advertisement</p>
+          </div>
+        </aside>
+      </main>
       <footer className="py-6 md:px-8 md:py-0 bg-background border-t border-border/40">
         <div className="container flex flex-col items-center justify-center gap-4 md:h-16 md:flex-row">
           <p className="text-balance text-center text-sm leading-loose text-muted-foreground">
