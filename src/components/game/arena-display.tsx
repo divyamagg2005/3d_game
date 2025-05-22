@@ -18,10 +18,10 @@ interface DayNightPhase {
 const dayNightCycleConfig = {
   cycleDuration: 120, // 120 seconds for a full cycle (2 minutes)
   phases: [
-    { name: 'Day', duration: 0.4, ambient: [0xffffff, 1.8], directional: [0xffffff, 2.5], background: 0xCAEFFF, fog: 0xCAEFFF }, // Very bright day
-    { name: 'Dusk', duration: 0.15, ambient: [0xaa7744, 0.4], directional: [0xaa7744, 0.5], background: 0x403050, fog: 0x403050 }, // Dimming, warm to cool
-    { name: 'Night', duration: 0.3, ambient: [0x101020, 0.05], directional: [0x151525, 0.1], background: 0x000010, fog: 0x000010 }, // Very dark
-    { name: 'Dawn', duration: 0.15, ambient: [0xccaa88, 0.6], directional: [0xccaa88, 0.9], background: 0x605070, fog: 0x605070 }, // Brightening, cool to warm
+    { name: 'Day', duration: 0.4, ambient: [0xffffff, 1.8], directional: [0xffffff, 2.5], background: 0xCAEFFF, fog: 0xCAEFFF },
+    { name: 'Dusk', duration: 0.15, ambient: [0xaa7744, 0.4], directional: [0xaa7744, 0.5], background: 0x403050, fog: 0x403050 },
+    { name: 'Night', duration: 0.3, ambient: [0x101020, 0.05], directional: [0x151525, 0.1], background: 0x000010, fog: 0x000010 },
+    { name: 'Dawn', duration: 0.15, ambient: [0xccaa88, 0.6], directional: [0xccaa88, 0.9], background: 0x605070, fog: 0x605070 },
   ] as DayNightPhase[],
 };
 
@@ -251,8 +251,22 @@ export default function ArenaDisplay() {
     scene.add(directionalLightRef.current);
     
     const textureLoader = new THREE.TextureLoader();
-    const textureLoadError = (textureName: string) => (error: ErrorEvent) => {
-      console.error(`ArenaDisplay: Error loading texture '${textureName}':`, error);
+    const textureLoadError = (textureName: string) => (event: ErrorEvent | Event) => {
+      console.error(`ArenaDisplay: Texture loading failed for '${textureName}'. Attempted path: /textures/${textureName}`);
+      if (event && 'message' in event) { // Check if it's an ErrorEvent
+        const errorEvent = event as ErrorEvent;
+        console.error('ErrorEvent details:', {
+          message: errorEvent.message,
+          filename: errorEvent.filename,
+          lineno: errorEvent.lineno,
+          colno: errorEvent.colno,
+          errorObject: errorEvent.error, // The actual error object
+        });
+      } else if (event && event.target instanceof Image) {
+        console.error('Image load error on target. src:', (event.target as HTMLImageElement).src);
+      } else {
+        console.error('An unknown error occurred during texture loading, or event details are unavailable.', event);
+      }
     };
 
     const groundTexture = textureLoader.load('/textures/ground-texture.jpeg', undefined, undefined, textureLoadError('ground-texture.jpeg'));
@@ -264,7 +278,7 @@ export default function ArenaDisplay() {
 
     const allTextures = [groundTexture, roofTexture, wallTexture1, wallTexture2, wallTexture3];
     allTextures.forEach(texture => {
-      if (texture) { // Check if texture loaded, might be null on error
+      if (texture) { 
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
       }
@@ -465,7 +479,6 @@ export default function ArenaDisplay() {
           accumulatedDuration += phaseActualDuration;
         }
         
-        // Ensure segmentProgress is always between 0 and 1
         segmentProgress = Math.max(0, Math.min(1, segmentProgress));
 
 
@@ -557,6 +570,3 @@ export default function ArenaDisplay() {
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
-
-
-      
