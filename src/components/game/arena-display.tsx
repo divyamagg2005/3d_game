@@ -18,10 +18,10 @@ interface DayNightPhase {
 const dayNightCycleConfig = {
   cycleDuration: 120, // 120 seconds for a full cycle (2 minutes)
   phases: [
-    { name: 'Day', duration: 0.4, ambient: [0xffffff, 0.9], directional: [0xffffff, 1.2], background: 0x87CEEB, fog: 0x87CEEB },
-    { name: 'Dusk', duration: 0.15, ambient: [0xffaa55, 0.6], directional: [0xffaa55, 0.8], background: 0xffaa55, fog: 0xffaa55 },
-    { name: 'Night', duration: 0.3, ambient: [0x222244, 0.3], directional: [0x444488, 0.4], background: 0x00001a, fog: 0x00001a },
-    { name: 'Dawn', duration: 0.15, ambient: [0xffaa55, 0.5], directional: [0xffaa55, 0.7], background: 0x4A3422, fog: 0x4A3422 },
+    { name: 'Day', duration: 0.4, ambient: [0xffffff, 1.2], directional: [0xffffff, 1.8], background: 0xCAEFFF, fog: 0xCAEFFF }, // Very bright day
+    { name: 'Dusk', duration: 0.15, ambient: [0xaa7744, 0.4], directional: [0xaa7744, 0.5], background: 0x403050, fog: 0x403050 }, // Dimming, warm to cool
+    { name: 'Night', duration: 0.3, ambient: [0x101020, 0.15], directional: [0x151525, 0.2], background: 0x000010, fog: 0x000010 }, // Very dark
+    { name: 'Dawn', duration: 0.15, ambient: [0xccaa88, 0.6], directional: [0xccaa88, 0.9], background: 0x605070, fog: 0x605070 }, // Brightening, cool to warm
   ] as DayNightPhase[],
 };
 
@@ -232,7 +232,7 @@ export default function ArenaDisplay() {
     scene.add(ambientLightRef.current);
 
     directionalLightRef.current = new THREE.DirectionalLight();
-    directionalLightRef.current.position.set(20, 50, 20);
+    directionalLightRef.current.position.set(20, 50, 20); // Sun position
     directionalLightRef.current.castShadow = true;
     directionalLightRef.current.shadow.mapSize.width = 2048;
     directionalLightRef.current.shadow.mapSize.height = 2048;
@@ -534,3 +534,4 @@ export default function ArenaDisplay() {
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
+
