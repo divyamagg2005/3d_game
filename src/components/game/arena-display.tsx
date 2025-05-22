@@ -1,10 +1,50 @@
 
 "use client";
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import { PLAYER_SPEED, PLAYER_SENSITIVITY, GROUND_SIZE } from '@/config/game-constants';
+
+interface DayNightPhase {
+  name: string;
+  duration: number; // as a fraction of total cycle time
+  ambient: [number, number]; // [color, intensity]
+  directional: [number, number]; // [color, intensity]
+  background: number; // color
+  fog: number; // color
+}
+
+const dayNightCycleConfig = {
+  cycleDuration: 120, // 120 seconds for a full cycle (2 minutes)
+  phases: [
+    { name: 'Day', duration: 0.4, ambient: [0xffffff, 0.9], directional: [0xffffff, 1.2], background: 0x87CEEB, fog: 0x87CEEB },
+    { name: 'Dusk', duration: 0.15, ambient: [0xffaa55, 0.6], directional: [0xffaa55, 0.8], background: 0xffaa55, fog: 0xffaa55 },
+    { name: 'Night', duration: 0.3, ambient: [0x222244, 0.3], directional: [0x444488, 0.4], background: 0x00001a, fog: 0x00001a },
+    { name: 'Dawn', duration: 0.15, ambient: [0xffaa55, 0.5], directional: [0xffaa55, 0.7], background: 0x4A3422, fog: 0x4A3422 },
+  ] as DayNightPhase[],
+};
+
+interface DayNightCycleState {
+  currentTime: number;
+  currentPhaseDetails: {
+    ambientColor: THREE.Color;
+    ambientIntensity: number;
+    directionalColor: THREE.Color;
+    directionalIntensity: number;
+    backgroundColor: THREE.Color;
+    fogColor: THREE.Color;
+  };
+}
+
+function getInterpolatedColor(color1: THREE.Color, color2: THREE.Color, factor: number): THREE.Color {
+  return new THREE.Color().lerpColors(color1, color2, factor);
+}
+
+function getInterpolatedFloat(val1: number, val2: number, factor: number): number {
+  return val1 + (val2 - val1) * factor;
+}
+
 
 export default function ArenaDisplay() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -25,15 +65,20 @@ export default function ArenaDisplay() {
   const ambientLightRef = useRef<THREE.AmbientLight | null>(null);
   const directionalLightRef = useRef<THREE.DirectionalLight | null>(null);
 
-  // Fixed daytime colors and intensities
-  const daytimeColors = {
-    ambient: new THREE.Color(0xffffff),
-    directional: new THREE.Color(0xffffff),
-    background: new THREE.Color(0x87CEEB), // Sky Blue
-    fog: new THREE.Color(0x87CEEB),
-  };
-  // Increased intensities for a very bright, Minecraft-like sunny day
-  const daytimeIntensities = { ambient: 1.5, directional: 2.0 };
+  const [dayNightCycle, setDayNightCycle] = useState<DayNightCycleState>(() => {
+    const initialPhase = dayNightCycleConfig.phases[0];
+    return {
+      currentTime: 0,
+      currentPhaseDetails: {
+        ambientColor: new THREE.Color(initialPhase.ambient[0]),
+        ambientIntensity: initialPhase.ambient[1],
+        directionalColor: new THREE.Color(initialPhase.directional[0]),
+        directionalIntensity: initialPhase.directional[1],
+        backgroundColor: new THREE.Color(initialPhase.background),
+        fogColor: new THREE.Color(initialPhase.fog),
+      },
+    };
+  });
 
 
   const onKeyDown = useCallback((event: KeyboardEvent) => {
@@ -139,8 +184,6 @@ export default function ArenaDisplay() {
     const currentMount = mountRef.current;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(daytimeColors.fog, GROUND_SIZE / 6, GROUND_SIZE * 0.75);
-    scene.background = daytimeColors.background.clone();
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
@@ -156,7 +199,7 @@ export default function ArenaDisplay() {
     rendererRef.current = renderer;
 
     const controls = new PointerLockControls(camera, renderer.domElement);
-    controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002;
+    controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002; 
     scene.add(controls.getObject());
     controlsRef.current = controls;
     
@@ -185,11 +228,11 @@ export default function ArenaDisplay() {
       isPaused.current = false; 
     }
     
-    ambientLightRef.current = new THREE.AmbientLight(daytimeColors.ambient, daytimeIntensities.ambient);
+    ambientLightRef.current = new THREE.AmbientLight();
     scene.add(ambientLightRef.current);
 
-    directionalLightRef.current = new THREE.DirectionalLight(daytimeColors.directional, daytimeIntensities.directional);
-    directionalLightRef.current.position.set(20, 50, 20); 
+    directionalLightRef.current = new THREE.DirectionalLight();
+    directionalLightRef.current.position.set(20, 50, 20);
     directionalLightRef.current.castShadow = true;
     directionalLightRef.current.shadow.mapSize.width = 2048;
     directionalLightRef.current.shadow.mapSize.height = 2048;
@@ -270,47 +313,60 @@ export default function ArenaDisplay() {
     wallW.castShadow = true; wallW.receiveShadow = true; scene.add(wallW);
 
     const buildingOffset = GROUND_SIZE / 4; 
+    const buildings: THREE.Mesh[] = [];
 
-    const house1 = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 5), residentialMaterials);
-    house1.position.set(-buildingOffset, 1.5, -buildingOffset + 5);
-    house1.castShadow = true; house1.receiveShadow = true; scene.add(house1);
-
-    const house2 = new THREE.Mesh(new THREE.BoxGeometry(5, 2.5, 4), residentialMaterials);
-    house2.position.set(-buildingOffset + 8, 1.25, -buildingOffset -2);
-    house2.castShadow = true; house2.receiveShadow = true; scene.add(house2);
+    // Function to add a building
+    const addBuilding = (geometry: THREE.BufferGeometry, materials: THREE.Material | THREE.Material[], x: number, y: number, z: number) => {
+      const building = new THREE.Mesh(geometry, materials);
+      building.position.set(x, y, z);
+      building.castShadow = true;
+      building.receiveShadow = true;
+      scene.add(building);
+      buildings.push(building);
+    };
     
-    const apartmentBlock = new THREE.Mesh(new THREE.BoxGeometry(6, 8, 5), residentialMaterials);
-    apartmentBlock.position.set(-buildingOffset - 5, 4, -buildingOffset - 8);
-    apartmentBlock.castShadow = true; apartmentBlock.receiveShadow = true; scene.add(apartmentBlock);
+    // Residential Area (More houses and blocks)
+    addBuilding(new THREE.BoxGeometry(4, 3, 5), residentialMaterials, -buildingOffset, 1.5, -buildingOffset + 5);
+    addBuilding(new THREE.BoxGeometry(5, 2.5, 4), residentialMaterials, -buildingOffset + 8, 1.25, -buildingOffset -2);
+    addBuilding(new THREE.BoxGeometry(6, 8, 5), residentialMaterials, -buildingOffset - 5, 4, -buildingOffset - 8);
+    addBuilding(new THREE.BoxGeometry(4.5, 3.5, 5.5), residentialMaterials, -buildingOffset - 12, 1.75, -buildingOffset + 10);
+    addBuilding(new THREE.BoxGeometry(5, 3, 4.5), residentialMaterials, -buildingOffset + 15, 1.5, -buildingOffset + 15);
+    addBuilding(new THREE.BoxGeometry(3.5, 2, 6), residentialMaterials, -buildingOffset + 2, 1, -buildingOffset -15);
 
-    const shop1 = new THREE.Mesh(new THREE.BoxGeometry(7, 5, 6), commercialMaterials);
-    shop1.position.set(buildingOffset, 2.5, -buildingOffset);
-    shop1.castShadow = true; shop1.receiveShadow = true; scene.add(shop1);
 
-    const office1 = new THREE.Mesh(new THREE.BoxGeometry(5, 10, 5), commercialMaterials);
-    office1.position.set(buildingOffset + 10, 5, -buildingOffset + 8);
-    office1.castShadow = true; office1.receiveShadow = true; scene.add(office1);
+    // Commercial Zone (More shops and offices)
+    addBuilding(new THREE.BoxGeometry(7, 5, 6), commercialMaterials, buildingOffset, 2.5, -buildingOffset);
+    addBuilding(new THREE.BoxGeometry(5, 10, 5), commercialMaterials, buildingOffset + 10, 5, -buildingOffset + 8);
+    addBuilding(new THREE.BoxGeometry(8, 6, 7), commercialMaterials, buildingOffset - 8, 3, -buildingOffset - 10);
+    addBuilding(new THREE.BoxGeometry(6, 9, 6), commercialMaterials, buildingOffset + 18, 4.5, -buildingOffset - 5);
+    addBuilding(new THREE.BoxGeometry(7.5, 5.5, 6.5), commercialMaterials, buildingOffset + 3, 2.75, -buildingOffset + 18);
 
-    const warehouse = new THREE.Mesh(new THREE.BoxGeometry(15, 6, 10), industrialMaterials);
-    warehouse.position.set(-buildingOffset + 5, 3, buildingOffset);
-    warehouse.castShadow = true; warehouse.receiveShadow = true; scene.add(warehouse);
 
+    // Industrial Sector (More warehouses and factories)
+    addBuilding(new THREE.BoxGeometry(15, 6, 10), industrialMaterials, -buildingOffset + 5, 3, buildingOffset);
     const factory = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 8), industrialMaterials);
     factory.position.set(-buildingOffset - 10, 4, buildingOffset + 12);
-    factory.castShadow = true; factory.receiveShadow = true; scene.add(factory);
-    
+    factory.castShadow = true; factory.receiveShadow = true; scene.add(factory); buildings.push(factory);
     const factorySmokestack = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 18, 16), smokestackMaterial); 
     factorySmokestack.position.set(-buildingOffset - 13.5, 9 + 1.5, buildingOffset + 14); 
-    factorySmokestack.castShadow = true; factorySmokestack.receiveShadow = true; scene.add(factorySmokestack);
+    factorySmokestack.castShadow = true; factorySmokestack.receiveShadow = true; scene.add(factorySmokestack); buildings.push(factorySmokestack);
+    addBuilding(new THREE.BoxGeometry(12, 7, 9), industrialMaterials, -buildingOffset - 20, 3.5, buildingOffset - 5);
+    addBuilding(new THREE.BoxGeometry(18, 5, 12), industrialMaterials, -buildingOffset + 20, 2.5, buildingOffset + 20);
 
 
-    const tallerBuilding1 = new THREE.Mesh(new THREE.BoxGeometry(6, 15, 6), downtownMaterials);
-    tallerBuilding1.position.set(buildingOffset, 7.5, buildingOffset);
-    tallerBuilding1.castShadow = true; tallerBuilding1.receiveShadow = true; scene.add(tallerBuilding1);
+    // Downtown Area (More taller buildings)
+    addBuilding(new THREE.BoxGeometry(6, 15, 6), downtownMaterials, buildingOffset, 7.5, buildingOffset);
+    addBuilding(new THREE.BoxGeometry(7, 25, 7), downtownMaterials, buildingOffset + 12, 12.5, buildingOffset + 12); // Landmark
+    addBuilding(new THREE.BoxGeometry(5.5, 20, 5.5), downtownMaterials, buildingOffset - 7, 10, buildingOffset + 8);
+    addBuilding(new THREE.BoxGeometry(6.5, 18, 6.5), downtownMaterials, buildingOffset + 20, 9, buildingOffset - 10);
+    addBuilding(new THREE.BoxGeometry(5, 22, 5), downtownMaterials, buildingOffset - 15, 11, buildingOffset - 15);
 
-    const tallerBuilding2Landmark = new THREE.Mesh(new THREE.BoxGeometry(7, 25, 7), downtownMaterials); 
-    tallerBuilding2Landmark.position.set(buildingOffset + 12, 12.5, buildingOffset + 12);
-    tallerBuilding2Landmark.castShadow = true; tallerBuilding2Landmark.receiveShadow = true; scene.add(tallerBuilding2Landmark);
+    // Some smaller, generic obstacles for more hiding spots
+    addBuilding(new THREE.BoxGeometry(2, 2, 2), commercialMaterials, 0, 1, 15);
+    addBuilding(new THREE.BoxGeometry(3, 1.5, 4), residentialMaterials, -10, 0.75, 20);
+    addBuilding(new THREE.BoxGeometry(2.5, 3, 2.5), industrialMaterials, 15, 1.5, -20);
+    addBuilding(new THREE.BoxGeometry(4, 2.5, 3), downtownMaterials, 25, 1.25, 25);
+
 
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
@@ -365,8 +421,48 @@ export default function ArenaDisplay() {
     };
     animate();
 
+    // Day/Night cycle interval
+    const cycleIntervalId = setInterval(() => {
+      if (isPaused.current) return;
+
+      setDayNightCycle(prev => {
+        const newTime = (prev.currentTime + 1) % dayNightCycleConfig.cycleDuration;
+        let accumulatedDuration = 0;
+        let currentPhaseIndex = 0;
+        let nextPhaseIndex = 0;
+        let segmentProgress = 0;
+
+        for (let i = 0; i < dayNightCycleConfig.phases.length; i++) {
+          const phase = dayNightCycleConfig.phases[i];
+          const phaseActualDuration = phase.duration * dayNightCycleConfig.cycleDuration;
+          if (newTime < accumulatedDuration + phaseActualDuration) {
+            currentPhaseIndex = i;
+            nextPhaseIndex = (i + 1) % dayNightCycleConfig.phases.length;
+            segmentProgress = (newTime - accumulatedDuration) / phaseActualDuration;
+            break;
+          }
+          accumulatedDuration += phaseActualDuration;
+        }
+
+        const currentPhase = dayNightCycleConfig.phases[currentPhaseIndex];
+        const nextPhase = dayNightCycleConfig.phases[nextPhaseIndex];
+
+        const newDetails = {
+          ambientColor: getInterpolatedColor(new THREE.Color(currentPhase.ambient[0]), new THREE.Color(nextPhase.ambient[0]), segmentProgress),
+          ambientIntensity: getInterpolatedFloat(currentPhase.ambient[1], nextPhase.ambient[1], segmentProgress),
+          directionalColor: getInterpolatedColor(new THREE.Color(currentPhase.directional[0]), new THREE.Color(nextPhase.directional[0]), segmentProgress),
+          directionalIntensity: getInterpolatedFloat(currentPhase.directional[1], nextPhase.directional[1], segmentProgress),
+          backgroundColor: getInterpolatedColor(new THREE.Color(currentPhase.background), new THREE.Color(nextPhase.background), segmentProgress),
+          fogColor: getInterpolatedColor(new THREE.Color(currentPhase.fog), new THREE.Color(nextPhase.fog), segmentProgress),
+        };
+        return { currentTime: newTime, currentPhaseDetails: newDetails };
+      });
+    }, 1000); // Update cycle every second
+
+
     return () => {
       cancelAnimationFrame(animationFrameId);
+      clearInterval(cycleIntervalId);
       window.removeEventListener('resize', handleResize);
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keyup', onKeyUp);
@@ -401,7 +497,12 @@ export default function ArenaDisplay() {
              sceneRef.current.traverse(object => {
                 if (object instanceof THREE.Mesh) {
                     if (object.geometry) object.geometry.dispose();
+                    // Materials are disposed above or handled by the arrays
                 }
+             });
+             buildings.forEach(building => {
+                if(building.geometry) building.geometry.dispose();
+                // materials disposed above
              });
          }
       }
@@ -417,9 +518,19 @@ export default function ArenaDisplay() {
       ambientLightRef.current = null;
       directionalLightRef.current = null;
     };
-  // Removed the old dayNightCycle logic from dependencies since it's no longer used.
   }, [onKeyDown, onKeyUp, clickToLockHandler, onLockHandler, onUnlockHandler]); 
+
+  useEffect(() => {
+    if (sceneRef.current && ambientLightRef.current && directionalLightRef.current) {
+      sceneRef.current.background = dayNightCycle.currentPhaseDetails.backgroundColor;
+      sceneRef.current.fog = new THREE.Fog(dayNightCycle.currentPhaseDetails.fogColor, GROUND_SIZE / 6, GROUND_SIZE * 0.75);
+      ambientLightRef.current.color = dayNightCycle.currentPhaseDetails.ambientColor;
+      ambientLightRef.current.intensity = dayNightCycle.currentPhaseDetails.ambientIntensity;
+      directionalLightRef.current.color = dayNightCycle.currentPhaseDetails.directionalColor;
+      directionalLightRef.current.intensity = dayNightCycle.currentPhaseDetails.directionalIntensity;
+    }
+  }, [dayNightCycle]);
+
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
-
