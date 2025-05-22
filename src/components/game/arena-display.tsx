@@ -20,6 +20,7 @@ export default function ArenaDisplay() {
   const velocity = useRef(new THREE.Vector3());
   const direction = useRef(new THREE.Vector3());
   const prevTime = useRef(performance.now());
+  const isPaused = useRef(false);
 
   const onKeyDown = useCallback((event: KeyboardEvent) => {
     switch (event.code) {
@@ -39,6 +40,31 @@ export default function ArenaDisplay() {
       case 'KeyD':
         moveRight.current = true;
         break;
+      case 'KeyP': {
+        isPaused.current = !isPaused.current;
+        const pausedMessageEl = document.getElementById('paused-message');
+        const instructionsEl = document.getElementById('instructions');
+        const blockerEl = document.getElementById('blocker');
+
+        if (isPaused.current) {
+          // Entering pause state
+          if (controlsRef.current?.isLocked) {
+            controlsRef.current.unlock(); // Triggers onUnlockHandler
+          } else {
+            // Controls already unlocked, manually update UI
+            if (blockerEl) blockerEl.style.display = 'grid';
+            if (pausedMessageEl) pausedMessageEl.style.display = 'block';
+            if (instructionsEl) instructionsEl.style.display = 'none';
+          }
+        } else {
+          // Exiting pause state (unpausing)
+          // Controls are unlocked. Switch message.
+          if (pausedMessageEl) pausedMessageEl.style.display = 'none';
+          if (instructionsEl) instructionsEl.style.display = ''; 
+          if (blockerEl && !controlsRef.current?.isLocked) blockerEl.style.display = 'grid'; // Ensure blocker is up if not locked
+        }
+        break;
+      }
     }
   }, []);
 
@@ -64,21 +90,39 @@ export default function ArenaDisplay() {
   }, []);
 
   const clickToLockHandler = useCallback(() => {
-    controlsRef.current?.lock();
+    if (!isPaused.current) { // Only lock if not paused
+        controlsRef.current?.lock();
+    }
   }, []);
 
   const onLockHandler = useCallback(() => {
     const instructionsEl = document.getElementById('instructions');
     const blockerEl = document.getElementById('blocker');
+    const pausedMessageEl = document.getElementById('paused-message');
+
     if (instructionsEl) instructionsEl.style.display = 'none';
     if (blockerEl) blockerEl.style.display = 'none';
+    if (pausedMessageEl) pausedMessageEl.style.display = 'none';
+    
+    // Ensure game is not paused when locked, if it was paused, P was pressed to unpause first.
+    // If user clicks to lock while isPaused is true (which clickToLockHandler prevents), this ensures it.
+    isPaused.current = false; 
   }, []);
 
   const onUnlockHandler = useCallback(() => {
     const instructionsEl = document.getElementById('instructions');
     const blockerEl = document.getElementById('blocker');
-    if (blockerEl) blockerEl.style.display = 'grid'; // Revert to grid as per GameUIOverlay's class
-    if (instructionsEl) instructionsEl.style.display = ''; // Revert to default display (block)
+    const pausedMessageEl = document.getElementById('paused-message');
+
+    if (blockerEl) blockerEl.style.display = 'grid';
+
+    if (isPaused.current) {
+      if (pausedMessageEl) pausedMessageEl.style.display = 'block';
+      if (instructionsEl) instructionsEl.style.display = 'none';
+    } else {
+      if (pausedMessageEl) pausedMessageEl.style.display = 'none';
+      if (instructionsEl) instructionsEl.style.display = '';
+    }
   }, []);
 
   useEffect(() => {
@@ -86,18 +130,15 @@ export default function ArenaDisplay() {
 
     const currentMount = mountRef.current;
 
-    // Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x2A2A2E);
     scene.fog = new THREE.Fog(0x2A2A2E, GROUND_SIZE / 4, GROUND_SIZE * 0.8);
     sceneRef.current = scene;
 
-    // Camera
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
     camera.position.set(0, 1.7, 5);
     cameraRef.current = camera;
 
-    // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
@@ -106,30 +147,38 @@ export default function ArenaDisplay() {
     currentMount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // Controls (Pointer Lock)
     const controls = new PointerLockControls(camera, renderer.domElement);
     scene.add(controls.getObject());
     controlsRef.current = controls;
     
     const instructionsElement = document.getElementById('instructions');
-    const blockerElement = document.getElementById('blocker');
+    const blockerElement = document.getElementById('blocker'); // Used for initial setup
+    const pausedMessageElement = document.getElementById('paused-message');
 
-    if (instructionsElement && blockerElement) {
+
+    if (instructionsElement) {
       instructionsElement.addEventListener('click', clickToLockHandler);
-      controls.addEventListener('lock', onLockHandler);
-      controls.addEventListener('unlock', onUnlockHandler);
-      
-      // Ensure initial visibility state is correct
-      if (!controls.isLocked) {
-        blockerElement.style.display = 'grid';
-        instructionsElement.style.display = ''; // Default display (block)
-      } else {
-        blockerElement.style.display = 'none';
-        instructionsElement.style.display = 'none';
-      }
     }
+    controls.addEventListener('lock', onLockHandler);
+    controls.addEventListener('unlock', onUnlockHandler);
+      
+    // Initial UI state
+    if (pausedMessageElement) pausedMessageElement.style.display = 'none';
+    if (!controls.isLocked) {
+      if (blockerElement) blockerElement.style.display = 'grid';
+      if (instructionsElement) instructionsElement.style.display = '';
+      if (isPaused.current) { // If somehow started paused
+           if (pausedMessageElement) pausedMessageElement.style.display = 'block';
+           if (instructionsElement) instructionsElement.style.display = 'none';
+      }
+    } else {
+      if (blockerElement) blockerElement.style.display = 'none';
+      if (instructionsElement) instructionsElement.style.display = 'none';
+      if (pausedMessageElement) pausedMessageElement.style.display = 'none';
+      isPaused.current = false; // Should not be paused if locked
+    }
+    
 
-    // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
 
@@ -138,10 +187,14 @@ export default function ArenaDisplay() {
     directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.width = 2048;
     directionalLight.shadow.mapSize.height = 2048;
-    // ... (rest of directionalLight shadow properties)
+    directionalLight.shadow.camera.near = 0.5;
+    directionalLight.shadow.camera.far = 500;
+    directionalLight.shadow.camera.left = -GROUND_SIZE/2;
+    directionalLight.shadow.camera.right = GROUND_SIZE/2;
+    directionalLight.shadow.camera.top = GROUND_SIZE/2;
+    directionalLight.shadow.camera.bottom = -GROUND_SIZE/2;
     scene.add(directionalLight);
     
-    // Ground, Walls, Obstacles, Car, Gun Store... (same as before)
     const groundGeometry = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
     const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.8, metalness: 0.2 });
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
@@ -205,9 +258,19 @@ export default function ArenaDisplay() {
     };
     window.addEventListener('resize', handleResize);
 
+    let animationFrameId: number;
     const animate = () => {
-      requestAnimationFrame(animate);
+      animationFrameId = requestAnimationFrame(animate);
       const time = performance.now();
+      
+      if (isPaused.current) {
+        if (rendererRef.current && sceneRef.current && cameraRef.current) {
+            rendererRef.current.render(sceneRef.current, cameraRef.current);
+        }
+        prevTime.current = time; // Keep prevTime updated to avoid large delta on resume
+        return;
+      }
+      
       const delta = (time - prevTime.current) / 1000;
 
       if (controlsRef.current?.isLocked === true) {
@@ -225,10 +288,10 @@ export default function ArenaDisplay() {
         controlsRef.current.moveForward(-velocity.current.z * delta);
 
         const camPos = controlsRef.current.getObject().position;
-        const halfGround = GROUND_SIZE / 2 - 1;
+        const halfGround = GROUND_SIZE / 2 - 1.1; // একটু বেশি মার্জিন
         camPos.x = Math.max(-halfGround, Math.min(halfGround, camPos.x));
         camPos.z = Math.max(-halfGround, Math.min(halfGround, camPos.z));
-        camPos.y = 1.7;
+        camPos.y = 1.7; // Keep player on ground
       }
       prevTime.current = time;
       if (rendererRef.current && sceneRef.current && cameraRef.current) {
@@ -238,6 +301,7 @@ export default function ArenaDisplay() {
     animate();
 
     return () => {
+      cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', handleResize);
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keyup', onKeyUp);
@@ -252,24 +316,28 @@ export default function ArenaDisplay() {
         controlsRef.current.removeEventListener('unlock', onUnlockHandler);
         controlsRef.current.dispose();
       }
-      if (rendererRef.current) rendererRef.current.dispose();
+      if (rendererRef.current) {
+         rendererRef.current.dispose();
+         // Clean up geometries and materials
+         sceneRef.current?.traverse(object => {
+            if (object instanceof THREE.Mesh) {
+                if (object.geometry) object.geometry.dispose();
+                if (object.material) {
+                if (Array.isArray(object.material)) {
+                    object.material.forEach(material => material.dispose());
+                } else {
+                    (object.material as THREE.Material).dispose();
+                }
+                }
+            }
+         });
+      }
       if (mountRef.current && rendererRef.current?.domElement) {
         mountRef.current.removeChild(rendererRef.current.domElement);
       }
-      scene.traverse(object => {
-        if (object instanceof THREE.Mesh) {
-          if (object.geometry) object.geometry.dispose();
-          if (object.material) {
-            if (Array.isArray(object.material)) {
-              object.material.forEach(material => material.dispose());
-            } else {
-              (object.material as THREE.Material).dispose();
-            }
-          }
-        }
-      });
     };
   }, [onKeyDown, onKeyUp, clickToLockHandler, onLockHandler, onUnlockHandler]);
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" />;
 }
+
