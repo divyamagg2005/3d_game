@@ -125,8 +125,8 @@ export default function ArenaDisplay() {
   }, []);
 
   const clickToLockHandler = useCallback(() => {
-    if (!isPaused.current) {
-        controlsRef.current?.lock();
+    if (!isPaused.current && controlsRef.current && !controlsRef.current.isLocked) {
+        controlsRef.current.lock();
     }
   }, []);
 
@@ -225,76 +225,114 @@ export default function ArenaDisplay() {
     directionalLightRef.current.shadow.camera.bottom = -GROUND_SIZE;
     scene.add(directionalLightRef.current);
     
+    // Texture Loading
+    const textureLoader = new THREE.TextureLoader();
+    const groundTexture = textureLoader.load('/textures/ground-texture.jpeg');
+    const roofTexture = textureLoader.load('/textures/roof-texture.jpeg');
+    const wallTexture1 = textureLoader.load('/textures/wall-texture-1.jpeg'); // Residential
+    const wallTexture2 = textureLoader.load('/textures/wall-texture-2.jpeg'); // Commercial & Downtown
+    const wallTexture3 = textureLoader.load('/textures/wall-texture-3.jpeg'); // Industrial
+
+    const allTextures = [groundTexture, roofTexture, wallTexture1, wallTexture2, wallTexture3];
+    allTextures.forEach(texture => {
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+    });
+
+    groundTexture.repeat.set(GROUND_SIZE / 10, GROUND_SIZE / 10); // Repeat texture every 10 units on ground
+
+    // Materials
+    const texturedGroundMaterial = new THREE.MeshStandardMaterial({ 
+      map: groundTexture, 
+      roughness: 0.9, // Keep some PBR properties
+      metalness: 0.1 
+    });
+    
+    const placeholderBottomMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9, metalness: 0.1 });
+
+    const makeBuildingFaceMaterials = (wallMap: THREE.Texture, roofMap: THREE.Texture, sideRoughness: number, sideMetalness: number) => [
+      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }), // Right face
+      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }), // Left face
+      new THREE.MeshStandardMaterial({ map: roofMap, roughness: 0.8, metalness: 0.2 }),    // Top face
+      placeholderBottomMaterial,                                                                             // Bottom face
+      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }), // Front face
+      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness })  // Back face
+    ];
+
+    const residentialMaterials = makeBuildingFaceMaterials(wallTexture1, roofTexture, 0.8, 0.2);
+    const commercialMaterials = makeBuildingFaceMaterials(wallTexture2, roofTexture, 0.6, 0.4);
+    const industrialMaterials = makeBuildingFaceMaterials(wallTexture3, roofTexture, 0.9, 0.6);
+    const downtownMaterials = makeBuildingFaceMaterials(wallTexture2, roofTexture, 0.4, 0.7); // Using wallTexture2 for downtown
+    
+    const smokestackMaterial = new THREE.MeshStandardMaterial({ map: wallTexture3, roughness: 0.9, metalness: 0.6 });
+
+
     const groundGeometry = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
-    const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.8, metalness: 0.2 });
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    const ground = new THREE.Mesh(groundGeometry, texturedGroundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
 
     const wallHeight = GROUND_SIZE ; 
     const wallThickness = 10; 
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x1A1A1D, roughness: 0.95, metalness: 0.1 }); 
+    const boundaryWallMaterial = new THREE.MeshStandardMaterial({ color: 0x1A1A1D, roughness: 0.95, metalness: 0.1 }); 
     
-    const wallN = new THREE.Mesh(new THREE.BoxGeometry(GROUND_SIZE + wallThickness * 2, wallHeight, wallThickness), wallMaterial);
+    const wallN = new THREE.Mesh(new THREE.BoxGeometry(GROUND_SIZE + wallThickness * 2, wallHeight, wallThickness), boundaryWallMaterial);
     wallN.position.set(0, wallHeight/2, -GROUND_SIZE/2 - wallThickness/2);
     wallN.castShadow = true; wallN.receiveShadow = true; scene.add(wallN);
     
-    const wallS = new THREE.Mesh(new THREE.BoxGeometry(GROUND_SIZE + wallThickness * 2, wallHeight, wallThickness), wallMaterial);
+    const wallS = new THREE.Mesh(new THREE.BoxGeometry(GROUND_SIZE + wallThickness * 2, wallHeight, wallThickness), boundaryWallMaterial);
     wallS.position.set(0, wallHeight/2, GROUND_SIZE/2 + wallThickness/2);
     wallS.castShadow = true; wallS.receiveShadow = true; scene.add(wallS);
 
-    const wallE = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, GROUND_SIZE), wallMaterial);
+    const wallE = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, GROUND_SIZE), boundaryWallMaterial);
     wallE.position.set(GROUND_SIZE/2 + wallThickness/2, wallHeight/2, 0);
     wallE.castShadow = true; wallE.receiveShadow = true; scene.add(wallE);
 
-    const wallW = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, GROUND_SIZE), wallMaterial);
+    const wallW = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, GROUND_SIZE), boundaryWallMaterial);
     wallW.position.set(-GROUND_SIZE/2 - wallThickness/2, wallHeight/2, 0);
     wallW.castShadow = true; wallW.receiveShadow = true; scene.add(wallW);
 
-    const residentialMaterial = new THREE.MeshStandardMaterial({ color: 0xA0A0A0, roughness: 0.8, metalness: 0.2 }); 
-    const commercialMaterial = new THREE.MeshStandardMaterial({ color: 0x708090, roughness: 0.6, metalness: 0.4 }); 
-    const industrialMaterial = new THREE.MeshStandardMaterial({ color: 0x4A4A4A, roughness: 0.9, metalness: 0.6 }); 
-    const downtownMaterial = new THREE.MeshStandardMaterial({ color: 0x333344, roughness: 0.4, metalness: 0.7 }); 
-
     const buildingOffset = GROUND_SIZE / 4; 
 
-    const house1 = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 5), residentialMaterial);
+    const house1 = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 5), residentialMaterials);
     house1.position.set(-buildingOffset, 1.5, -buildingOffset + 5);
     house1.castShadow = true; house1.receiveShadow = true; scene.add(house1);
 
-    const house2 = new THREE.Mesh(new THREE.BoxGeometry(5, 2.5, 4), residentialMaterial);
+    const house2 = new THREE.Mesh(new THREE.BoxGeometry(5, 2.5, 4), residentialMaterials);
     house2.position.set(-buildingOffset + 8, 1.25, -buildingOffset -2);
     house2.castShadow = true; house2.receiveShadow = true; scene.add(house2);
     
-    const apartmentBlock = new THREE.Mesh(new THREE.BoxGeometry(6, 8, 5), residentialMaterial);
+    const apartmentBlock = new THREE.Mesh(new THREE.BoxGeometry(6, 8, 5), residentialMaterials);
     apartmentBlock.position.set(-buildingOffset - 5, 4, -buildingOffset - 8);
     apartmentBlock.castShadow = true; apartmentBlock.receiveShadow = true; scene.add(apartmentBlock);
 
-    const shop1 = new THREE.Mesh(new THREE.BoxGeometry(7, 5, 6), commercialMaterial);
+    const shop1 = new THREE.Mesh(new THREE.BoxGeometry(7, 5, 6), commercialMaterials);
     shop1.position.set(buildingOffset, 2.5, -buildingOffset);
     shop1.castShadow = true; shop1.receiveShadow = true; scene.add(shop1);
 
-    const office1 = new THREE.Mesh(new THREE.BoxGeometry(5, 10, 5), commercialMaterial);
+    const office1 = new THREE.Mesh(new THREE.BoxGeometry(5, 10, 5), commercialMaterials);
     office1.position.set(buildingOffset + 10, 5, -buildingOffset + 8);
     office1.castShadow = true; office1.receiveShadow = true; scene.add(office1);
 
-    const warehouse = new THREE.Mesh(new THREE.BoxGeometry(15, 6, 10), industrialMaterial);
+    const warehouse = new THREE.Mesh(new THREE.BoxGeometry(15, 6, 10), industrialMaterials);
     warehouse.position.set(-buildingOffset + 5, 3, buildingOffset);
     warehouse.castShadow = true; warehouse.receiveShadow = true; scene.add(warehouse);
 
-    const factory = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 8), industrialMaterial);
-    const factorySmokestack = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 18, 16), industrialMaterial); 
+    const factory = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 8), industrialMaterials);
     factory.position.set(-buildingOffset - 10, 4, buildingOffset + 12);
-    factorySmokestack.position.set(-buildingOffset - 13.5, 9, buildingOffset + 14); 
     factory.castShadow = true; factory.receiveShadow = true; scene.add(factory);
+    
+    const factorySmokestack = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 18, 16), smokestackMaterial); 
+    factorySmokestack.position.set(-buildingOffset - 13.5, 9 + 1.5, buildingOffset + 14); // Adjusted Y position to sit on factory
     factorySmokestack.castShadow = true; factorySmokestack.receiveShadow = true; scene.add(factorySmokestack);
 
-    const tallerBuilding1 = new THREE.Mesh(new THREE.BoxGeometry(6, 15, 6), downtownMaterial);
+
+    const tallerBuilding1 = new THREE.Mesh(new THREE.BoxGeometry(6, 15, 6), downtownMaterials);
     tallerBuilding1.position.set(buildingOffset, 7.5, buildingOffset);
     tallerBuilding1.castShadow = true; tallerBuilding1.receiveShadow = true; scene.add(tallerBuilding1);
 
-    const tallerBuilding2Landmark = new THREE.Mesh(new THREE.BoxGeometry(7, 25, 7), downtownMaterial); 
+    const tallerBuilding2Landmark = new THREE.Mesh(new THREE.BoxGeometry(7, 25, 7), downtownMaterials); 
     tallerBuilding2Landmark.position.set(buildingOffset + 12, 12.5, buildingOffset + 12);
     tallerBuilding2Landmark.castShadow = true; tallerBuilding2Landmark.receiveShadow = true; scene.add(tallerBuilding2Landmark);
 
@@ -318,25 +356,25 @@ export default function ArenaDisplay() {
       
       if (!isPaused.current) {
         gameTimeRef.current = (gameTimeRef.current + delta * 1000) % cycleDuration;
-        const cycleProgress = gameTimeRef.current / cycleDuration; // 0 to 1
+        const cycleProgress = gameTimeRef.current / cycleDuration; 
 
         let c1, i1, c2, i2, segmentProgress;
 
-        if (cycleProgress < 0.25) { // Day
+        if (cycleProgress < 0.25) { 
           c1 = dayColors; i1 = dayIntensities;
-          c2 = dayColors; i2 = dayIntensities; // Still day, or start of day->dusk
-          segmentProgress = (cycleProgress / 0.25); // Progress within day segment if needed, or 0 for simple day
-        } else if (cycleProgress < 0.5) { // Day to Dusk
-          c1 = dayColors; i1 = dayIntensities;
-          c2 = duskColors; i2 = duskIntensities;
-          segmentProgress = (cycleProgress - 0.25) / 0.25;
-        } else if (cycleProgress < 0.75) { // Dusk to Night
+          c2 = duskColors; i2 = duskIntensities; 
+          segmentProgress = cycleProgress / 0.25;
+        } else if (cycleProgress < 0.5) { 
           c1 = duskColors; i1 = duskIntensities;
           c2 = nightColors; i2 = nightIntensities;
-          segmentProgress = (cycleProgress - 0.5) / 0.25;
-        } else { // Night to Dawn/Day
+          segmentProgress = (cycleProgress - 0.25) / 0.25;
+        } else if (cycleProgress < 0.75) { 
           c1 = nightColors; i1 = nightIntensities;
-          c2 = dawnColors; i2 = dawnIntensities; 
+          c2 = dawnColors; i2 = dawnIntensities;
+          segmentProgress = (cycleProgress - 0.5) / 0.25;
+        } else { 
+          c1 = dawnColors; i1 = dawnIntensities;
+          c2 = dayColors; i2 = dayIntensities; 
           segmentProgress = (cycleProgress - 0.75) / 0.25;
         }
         
@@ -402,15 +440,19 @@ export default function ArenaDisplay() {
       if (controlsRef.current) {
         controlsRef.current.removeEventListener('lock', onLockHandler);
         controlsRef.current.removeEventListener('unlock', onUnlockHandler);
-        if (controlsRef.current.isLocked) { // Check if locked before unlocking
+        if (controlsRef.current.isLocked) { 
           controlsRef.current.unlock();
         }
         controlsRef.current.dispose();
-        controlsRef.current = null;
       }
+
+      // Dispose textures
+      allTextures.forEach(texture => texture.dispose());
+      placeholderBottomMaterial.dispose();
+      // Materials created for building faces will be disposed by the general scene traversal.
+
       if (rendererRef.current) {
          rendererRef.current.dispose();
-         // Dispose scene objects
          if (sceneRef.current) {
              sceneRef.current.traverse(object => {
                 if (object instanceof THREE.Mesh) {
@@ -422,24 +464,22 @@ export default function ArenaDisplay() {
                     }
                 }
              });
-             sceneRef.current = null; // Clear scene ref
          }
-         rendererRef.current = null; // Clear renderer ref
       }
-      if (cameraRef.current) {
-        cameraRef.current = null; // Clear camera ref
-      }
-      if (mountRef.current && rendererRef.current?.domElement) { // This check might be problematic if rendererRef.current is nulled above
-        // Check if mountRef.current still contains the domElement before removing
-        // This part of the cleanup needs to be careful about the order of nulling refs
-        // It's safer to remove the child first if the renderer still exists
-      }
-      // Revised DOM element removal
-      if (mountRef.current && currentMount.contains(renderer.domElement)) { // Use the 'renderer' from the setup scope
+      
+      if (mountRef.current && rendererRef.current?.domElement && currentMount.contains(renderer.domElement)) {
            currentMount.removeChild(renderer.domElement);
       }
+      
+      // Clear refs
+      sceneRef.current = null;
+      cameraRef.current = null;
+      rendererRef.current = null;
+      controlsRef.current = null;
+      ambientLightRef.current = null;
+      directionalLightRef.current = null;
     };
-  }, [onKeyDown, onKeyUp, clickToLockHandler, onLockHandler, onUnlockHandler, cycleDuration, dayColors, dayIntensities, duskColors, duskIntensities, nightColors, nightIntensities, dawnColors, dawnIntensities]); // Dependencies should be stable
+  }, [onKeyDown, onKeyUp, clickToLockHandler, onLockHandler, onUnlockHandler, cycleDuration, dayColors, dayIntensities, duskColors, duskIntensities, nightColors, nightIntensities, dawnColors, dawnIntensities]); 
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
