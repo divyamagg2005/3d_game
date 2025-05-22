@@ -125,12 +125,12 @@ export default function ArenaDisplay() {
     const currentMount = mountRef.current;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x2A2A2E);
+    scene.background = new THREE.Color(0x2A2A2E); // Dark gray background
     scene.fog = new THREE.Fog(0x2A2A2E, GROUND_SIZE / 6, GROUND_SIZE * 0.75);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
-    camera.position.set(0, 1.7, 5); // Start slightly further back to see initial area
+    camera.position.set(0, 1.7, 5); 
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -157,7 +157,7 @@ export default function ArenaDisplay() {
     controls.addEventListener('unlock', onUnlockHandler);
       
     if (pausedMessageElement) pausedMessageElement.style.display = 'none';
-    if (!controls.isLocked) {
+    if (!controls.isLocked && currentMount) { // Added currentMount check
       if (blockerElement) blockerElement.style.display = 'grid';
       if (instructionsElement) instructionsElement.style.display = '';
       if (isPaused.current) { 
@@ -189,15 +189,16 @@ export default function ArenaDisplay() {
     scene.add(directionalLight);
     
     const groundGeometry = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
-    const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.8, metalness: 0.2 });
+    const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.8, metalness: 0.2 }); // Medium gray ground
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    const wallHeight = GROUND_SIZE / 3; 
-    const wallThickness = 5; 
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x1A1A1D, roughness: 0.95, metalness: 0.1 }); 
+    // Boundary Walls
+    const wallHeight = GROUND_SIZE ; // Significantly taller walls
+    const wallThickness = 10; // Thicker walls
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x1A1A1D, roughness: 0.95, metalness: 0.1 }); // Very dark gray walls
     
     const wallN = new THREE.Mesh(new THREE.BoxGeometry(GROUND_SIZE + wallThickness * 2, wallHeight, wallThickness), wallMaterial);
     wallN.position.set(0, wallHeight/2, -GROUND_SIZE/2 - wallThickness/2);
@@ -216,10 +217,10 @@ export default function ArenaDisplay() {
     wallW.castShadow = true; wallW.receiveShadow = true; scene.add(wallW);
 
     // District Materials
-    const residentialMaterial = new THREE.MeshStandardMaterial({ color: 0xA0A0A0, roughness: 0.8, metalness: 0.2 });
-    const commercialMaterial = new THREE.MeshStandardMaterial({ color: 0x708090, roughness: 0.6, metalness: 0.4 });
-    const industrialMaterial = new THREE.MeshStandardMaterial({ color: 0x4A4A4A, roughness: 0.9, metalness: 0.6 });
-    const downtownMaterial = new THREE.MeshStandardMaterial({ color: 0x333344, roughness: 0.4, metalness: 0.7 });
+    const residentialMaterial = new THREE.MeshStandardMaterial({ color: 0xA0A0A0, roughness: 0.8, metalness: 0.2 }); // Light gray "stucco/brick"
+    const commercialMaterial = new THREE.MeshStandardMaterial({ color: 0x708090, roughness: 0.6, metalness: 0.4 }); // Slate gray "concrete/metal"
+    const industrialMaterial = new THREE.MeshStandardMaterial({ color: 0x4A4A4A, roughness: 0.9, metalness: 0.6 }); // Dark, rough "aged metal/concrete"
+    const downtownMaterial = new THREE.MeshStandardMaterial({ color: 0x333344, roughness: 0.4, metalness: 0.7 }); // Dark blue-gray "glass/steel"
 
     const buildingOffset = GROUND_SIZE / 4; // Place districts roughly in quadrants
 
@@ -251,9 +252,9 @@ export default function ArenaDisplay() {
     warehouse.castShadow = true; warehouse.receiveShadow = true; scene.add(warehouse);
 
     const factory = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 8), industrialMaterial);
-    const factorySmokestack = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 12, 16), industrialMaterial);
+    const factorySmokestack = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 18, 16), industrialMaterial); // Taller smokestack
     factory.position.set(-buildingOffset - 10, 4, buildingOffset + 12);
-    factorySmokestack.position.set(-buildingOffset - 13, 10, buildingOffset + 14); // Position relative to factory
+    factorySmokestack.position.set(-buildingOffset - 13.5, 9, buildingOffset + 14); // Position relative to factory, adjusted for new height
     factory.castShadow = true; factory.receiveShadow = true; scene.add(factory);
     factorySmokestack.castShadow = true; factorySmokestack.receiveShadow = true; scene.add(factorySmokestack);
 
@@ -263,9 +264,9 @@ export default function ArenaDisplay() {
     tallerBuilding1.position.set(buildingOffset, 7.5, buildingOffset);
     tallerBuilding1.castShadow = true; tallerBuilding1.receiveShadow = true; scene.add(tallerBuilding1);
 
-    const tallerBuilding2 = new THREE.Mesh(new THREE.BoxGeometry(5, 20, 5), downtownMaterial); // Tallest building
-    tallerBuilding2.position.set(buildingOffset + 10, 10, buildingOffset + 10);
-    tallerBuilding2.castShadow = true; tallerBuilding2.receiveShadow = true; scene.add(tallerBuilding2);
+    const tallerBuilding2Landmark = new THREE.Mesh(new THREE.BoxGeometry(7, 25, 7), downtownMaterial); // Significantly Taller landmark building
+    tallerBuilding2Landmark.position.set(buildingOffset + 12, 12.5, buildingOffset + 12);
+    tallerBuilding2Landmark.castShadow = true; tallerBuilding2Landmark.receiveShadow = true; scene.add(tallerBuilding2Landmark);
 
 
     document.addEventListener('keydown', onKeyDown);
@@ -310,7 +311,7 @@ export default function ArenaDisplay() {
         controlsRef.current.moveForward(-velocity.current.z * delta);
 
         const camPos = controlsRef.current.getObject().position;
-        const halfGroundMinusWall = GROUND_SIZE / 2 - wallThickness / 2 - 0.5; 
+        const halfGroundMinusWall = GROUND_SIZE / 2 - wallThickness / 2 - 1.0; // Adjusted for thicker walls
         camPos.x = Math.max(-halfGroundMinusWall, Math.min(halfGroundMinusWall, camPos.x));
         camPos.z = Math.max(-halfGroundMinusWall, Math.min(halfGroundMinusWall, camPos.z));
         camPos.y = 1.7; 
@@ -340,6 +341,7 @@ export default function ArenaDisplay() {
       }
       if (rendererRef.current) {
          rendererRef.current.dispose();
+         // Properly dispose of scene objects
          sceneRef.current?.traverse(object => {
             if (object instanceof THREE.Mesh) {
                 if (object.geometry) object.geometry.dispose();
@@ -352,7 +354,10 @@ export default function ArenaDisplay() {
          });
       }
       if (mountRef.current && rendererRef.current?.domElement) {
-        mountRef.current.removeChild(rendererRef.current.domElement);
+        // Check if domElement is still a child before removing
+        if (mountRef.current.contains(rendererRef.current.domElement)) {
+          mountRef.current.removeChild(rendererRef.current.domElement);
+        }
       }
     };
   }, [onKeyDown, onKeyUp, clickToLockHandler, onLockHandler, onUnlockHandler]);
