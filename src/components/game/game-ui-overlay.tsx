@@ -8,10 +8,8 @@ import { Card, CardContent } from '@/components/ui/card';
 export default function GameUIOverlay() {
   const [score, setScore] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(300); // 5 minutes in seconds
-  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    setIsClient(true);
     // Mock score increment
     const scoreInterval = setInterval(() => {
       setScore(prevScore => prevScore + 10);
@@ -27,10 +25,6 @@ export default function GameUIOverlay() {
       clearInterval(timerInterval);
     };
   }, []);
-
-  if (!isClient) {
-    return null; // Avoid hydration mismatch
-  }
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -79,9 +73,9 @@ export default function GameUIOverlay() {
         </Card>
       </div>
 
-      {/* Centered message for pointer lock */}
-       <div id="blocker" className="absolute inset-0 bg-black/50 place-items-center text-white text-center pointer-events-auto"> {/* Removed 'hidden' class */}
-        <div id="instructions" className="p-8 rounded-lg bg-background/90 shadow-xl">
+      {/* Centered message for pointer lock. Its visibility is controlled by ArenaDisplay. */}
+       <div id="blocker" className="absolute inset-0 bg-black/50 grid place-items-center text-white text-center pointer-events-auto">
+        <div id="instructions" className="p-8 rounded-lg bg-background/90 shadow-xl cursor-pointer">
           <p className="text-2xl font-bold mb-4">Click to Play</p>
           <p className="text-lg">Use W, A, S, D to move.</p>
           <p className="text-lg">Move mouse to look.</p>

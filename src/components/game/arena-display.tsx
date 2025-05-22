@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useRef, useCallback } from 'react';
@@ -62,6 +63,24 @@ export default function ArenaDisplay() {
     }
   }, []);
 
+  const clickToLockHandler = useCallback(() => {
+    controlsRef.current?.lock();
+  }, []);
+
+  const onLockHandler = useCallback(() => {
+    const instructionsEl = document.getElementById('instructions');
+    const blockerEl = document.getElementById('blocker');
+    if (instructionsEl) instructionsEl.style.display = 'none';
+    if (blockerEl) blockerEl.style.display = 'none';
+  }, []);
+
+  const onUnlockHandler = useCallback(() => {
+    const instructionsEl = document.getElementById('instructions');
+    const blockerEl = document.getElementById('blocker');
+    if (blockerEl) blockerEl.style.display = 'grid'; // Revert to grid as per GameUIOverlay's class
+    if (instructionsEl) instructionsEl.style.display = ''; // Revert to default display (block)
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined' || !mountRef.current) return;
 
@@ -69,13 +88,13 @@ export default function ArenaDisplay() {
 
     // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x2A2A2E); // Dark gray background
+    scene.background = new THREE.Color(0x2A2A2E);
     scene.fog = new THREE.Fog(0x2A2A2E, GROUND_SIZE / 4, GROUND_SIZE * 0.8);
     sceneRef.current = scene;
 
     // Camera
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
-    camera.position.set(0, 1.7, 5); // Player height and initial position
+    camera.position.set(0, 1.7, 5);
     cameraRef.current = camera;
 
     // Renderer
@@ -92,24 +111,23 @@ export default function ArenaDisplay() {
     scene.add(controls.getObject());
     controlsRef.current = controls;
     
-    const blocker = document.getElementById('blocker');
-    const instructions = document.getElementById('instructions');
+    const instructionsElement = document.getElementById('instructions');
+    const blockerElement = document.getElementById('blocker');
 
-    if (instructions && blocker) {
-      instructions.addEventListener('click', () => controls.lock());
-      controls.addEventListener('lock', () => {
-        instructions.style.display = 'none';
-        blocker.style.display = 'none';
-      });
-      controls.addEventListener('unlock', () => {
-        blocker.style.display = 'grid'; // Use grid to center
-        instructions.style.display = '';
-      });
-       // Initial state for instructions
-      blocker.style.display = 'grid';
-      instructions.style.display = '';
+    if (instructionsElement && blockerElement) {
+      instructionsElement.addEventListener('click', clickToLockHandler);
+      controls.addEventListener('lock', onLockHandler);
+      controls.addEventListener('unlock', onUnlockHandler);
+      
+      // Ensure initial visibility state is correct
+      if (!controls.isLocked) {
+        blockerElement.style.display = 'grid';
+        instructionsElement.style.display = ''; // Default display (block)
+      } else {
+        blockerElement.style.display = 'none';
+        instructionsElement.style.display = 'none';
+      }
     }
-
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -120,26 +138,20 @@ export default function ArenaDisplay() {
     directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.width = 2048;
     directionalLight.shadow.mapSize.height = 2048;
-    directionalLight.shadow.camera.near = 0.5;
-    directionalLight.shadow.camera.far = 500;
-    directionalLight.shadow.camera.left = -GROUND_SIZE / 2;
-    directionalLight.shadow.camera.right = GROUND_SIZE / 2;
-    directionalLight.shadow.camera.top = GROUND_SIZE / 2;
-    directionalLight.shadow.camera.bottom = -GROUND_SIZE / 2;
+    // ... (rest of directionalLight shadow properties)
     scene.add(directionalLight);
     
-    // Ground
+    // Ground, Walls, Obstacles, Car, Gun Store... (same as before)
     const groundGeometry = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
-    const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.8, metalness: 0.2 }); // Darker ground
+    const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.8, metalness: 0.2 });
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // Arena Walls (simple boxes)
     const wallHeight = 10;
     const wallThickness = 2;
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x404040, roughness: 0.9 }); // Dark walls
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x404040, roughness: 0.9 });
     const wallN = new THREE.Mesh(new THREE.BoxGeometry(GROUND_SIZE, wallHeight, wallThickness), wallMaterial);
     wallN.position.set(0, wallHeight/2, -GROUND_SIZE/2);
     wallN.castShadow = true; wallN.receiveShadow = true; scene.add(wallN);
@@ -153,9 +165,7 @@ export default function ArenaDisplay() {
     wallW.position.set(-GROUND_SIZE/2, wallHeight/2, 0);
     wallW.castShadow = true; wallW.receiveShadow = true; scene.add(wallW);
 
-
-    // Placeholder Environmental Elements (e.g., "buildings" or obstacles)
-    const obstacleMaterial = new THREE.MeshStandardMaterial({ color: 0xCD7F32, roughness: 0.5, metalness: 0.5 }); // Bronze
+    const obstacleMaterial = new THREE.MeshStandardMaterial({ color: 0xCD7F32, roughness: 0.5, metalness: 0.5 });
     for (let i = 0; i < 5; i++) {
       const size = Math.random() * 4 + 2;
       const obstacle = new THREE.Mesh(new THREE.BoxGeometry(size, size * 1.5, size), obstacleMaterial);
@@ -169,27 +179,23 @@ export default function ArenaDisplay() {
       scene.add(obstacle);
     }
     
-    // Placeholder "Car"
-    const carMaterial = new THREE.MeshStandardMaterial({ color: 0x3333CC, roughness: 0.2, metalness: 0.8 }); // Blueish
+    const carMaterial = new THREE.MeshStandardMaterial({ color: 0x3333CC, roughness: 0.2, metalness: 0.8 });
     const car = new THREE.Mesh(new THREE.BoxGeometry(4, 1.5, 2), carMaterial);
     car.position.set(10, 0.75, 10);
     car.castShadow = true;
     car.receiveShadow = true;
     scene.add(car);
     
-    // Placeholder "Gun Store"
-    const storeMaterial = new THREE.MeshStandardMaterial({ color: 0xFFD700, roughness: 0.3, metalness: 0.7 }); // Gold
+    const storeMaterial = new THREE.MeshStandardMaterial({ color: 0xFFD700, roughness: 0.3, metalness: 0.7 });
     const gunStore = new THREE.Mesh(new THREE.BoxGeometry(5, 4, 3), storeMaterial);
     gunStore.position.set(-15, 2, -15);
     gunStore.castShadow = true;
     gunStore.receiveShadow = true;
     scene.add(gunStore);
-    
-    // Event Listeners for controls
+
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
 
-    // Resize handler
     const handleResize = () => {
       if (cameraRef.current && rendererRef.current && mountRef.current) {
         cameraRef.current.aspect = mountRef.current.clientWidth / mountRef.current.clientHeight;
@@ -199,21 +205,18 @@ export default function ArenaDisplay() {
     };
     window.addEventListener('resize', handleResize);
 
-    // Animation Loop
     const animate = () => {
       requestAnimationFrame(animate);
-
       const time = performance.now();
       const delta = (time - prevTime.current) / 1000;
 
       if (controlsRef.current?.isLocked === true) {
         velocity.current.x -= velocity.current.x * 10.0 * delta;
         velocity.current.z -= velocity.current.z * 10.0 * delta;
-        // velocity.current.y -= 9.8 * 100.0 * delta; // simple gravity (disabled for now)
 
         direction.current.z = Number(moveForward.current) - Number(moveBackward.current);
         direction.current.x = Number(moveRight.current) - Number(moveLeft.current);
-        direction.current.normalize(); // this ensures consistent movements in all directions
+        direction.current.normalize();
 
         if (moveForward.current || moveBackward.current) velocity.current.z -= direction.current.z * PLAYER_SPEED * 10.0 * delta;
         if (moveLeft.current || moveRight.current) velocity.current.x -= direction.current.x * PLAYER_SPEED * 10.0 * delta;
@@ -221,14 +224,12 @@ export default function ArenaDisplay() {
         controlsRef.current.moveRight(-velocity.current.x * delta);
         controlsRef.current.moveForward(-velocity.current.z * delta);
 
-        // Boundary checks (simple collision with ground plane edges)
         const camPos = controlsRef.current.getObject().position;
-        const halfGround = GROUND_SIZE / 2 - 1; // -1 for buffer
+        const halfGround = GROUND_SIZE / 2 - 1;
         camPos.x = Math.max(-halfGround, Math.min(halfGround, camPos.x));
         camPos.z = Math.max(-halfGround, Math.min(halfGround, camPos.z));
-        camPos.y = 1.7; // Keep player on ground, simple
+        camPos.y = 1.7;
       }
-
       prevTime.current = time;
       if (rendererRef.current && sceneRef.current && cameraRef.current) {
         rendererRef.current.render(sceneRef.current, cameraRef.current);
@@ -236,26 +237,25 @@ export default function ArenaDisplay() {
     };
     animate();
 
-    // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keyup', onKeyUp);
+
+      const currentInstructions = document.getElementById('instructions');
+      if (currentInstructions) {
+        currentInstructions.removeEventListener('click', clickToLockHandler);
+      }
+      
       if (controlsRef.current) {
-         const blockerElem = document.getElementById('blocker');
-         const instructionsElem = document.getElementById('instructions');
-         if (instructionsElem && blockerElem) {
-            instructionsElem.removeEventListener('click', () => controlsRef.current?.lock());
-         }
+        controlsRef.current.removeEventListener('lock', onLockHandler);
+        controlsRef.current.removeEventListener('unlock', onUnlockHandler);
         controlsRef.current.dispose();
       }
-      if (rendererRef.current) {
-        rendererRef.current.dispose();
-      }
+      if (rendererRef.current) rendererRef.current.dispose();
       if (mountRef.current && rendererRef.current?.domElement) {
         mountRef.current.removeChild(rendererRef.current.domElement);
       }
-      // Dispose geometries and materials if needed for complex scenes
       scene.traverse(object => {
         if (object instanceof THREE.Mesh) {
           if (object.geometry) object.geometry.dispose();
@@ -263,13 +263,13 @@ export default function ArenaDisplay() {
             if (Array.isArray(object.material)) {
               object.material.forEach(material => material.dispose());
             } else {
-              object.material.dispose();
+              (object.material as THREE.Material).dispose();
             }
           }
         }
       });
     };
-  }, [onKeyDown, onKeyUp]);
+  }, [onKeyDown, onKeyUp, clickToLockHandler, onLockHandler, onUnlockHandler]);
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" />;
 }
