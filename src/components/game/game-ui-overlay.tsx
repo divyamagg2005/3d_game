@@ -2,75 +2,21 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Shield, Swords, Hourglass } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 
 export default function GameUIOverlay() {
-  const [score, setScore] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState(300); // 5 minutes in seconds
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true); // Component has mounted on client
-
-    // Mock score increment - only run if not paused (conceptual, actual pause logic is in ArenaDisplay)
-    const scoreInterval = setInterval(() => {
-      setScore(prevScore => prevScore + 10);
-    }, 5000);
-
-    // Timer countdown - only run if not paused
-    const timerInterval = setInterval(() => {
-      setTimeRemaining(prevTime => (prevTime > 0 ? prevTime - 1 : 0));
-    }, 1000);
-
-    // The actual pausing of these intervals would ideally be controlled by ArenaDisplay's pause state.
-    // For simplicity here, they keep running, but a real game would pause these too.
-
-    return () => {
-      clearInterval(scoreInterval);
-      clearInterval(timerInterval);
-    };
   }, []);
-
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
 
   return (
     <div className="absolute inset-0 pointer-events-none p-4 md:p-6 flex flex-col text-foreground">
       {/* Top Row: Score and Timer - Render content only on client */}
       {isClient && (
         <>
-          <div className="flex justify-between items-start">
-            {/* Score */}
-            <Card className="bg-card/80 backdrop-blur-sm border-accent shadow-lg">
-              <CardContent className="p-3 md:p-4">
-                <div className="flex items-center space-x-2">
-                  <Swords className="h-6 w-6 md:h-8 md:w-8 text-accent" />
-                  <div>
-                    <p className="text-xs md:text-sm text-muted-foreground font-mono uppercase">Score</p>
-                    <p className="text-xl md:text-2xl font-bold text-accent">{score.toLocaleString()}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Timer */}
-            <Card className="bg-card/80 backdrop-blur-sm border-primary shadow-lg">
-              <CardContent className="p-3 md:p-4">
-                <div className="flex items-center space-x-2">
-                  <Hourglass className="h-6 w-6 md:h-8 md:w-8 text-primary" />
-                  <div>
-                    <p className="text-xs md:text-sm text-muted-foreground font-mono uppercase">Time</p>
-                    <p className="text-xl md:text-2xl font-bold text-primary">{formatTime(timeRemaining)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
           {/* Placeholder for player stats or other UI elements */}
           <div className="mt-auto self-start">
             <Card className="bg-card/80 backdrop-blur-sm border-gray-500 shadow-md">
@@ -86,7 +32,7 @@ export default function GameUIOverlay() {
        <div 
             id="blocker" 
             className="absolute inset-0 bg-black/50 grid place-items-center text-white text-center pointer-events-auto"
-            style={{ display: 'none' }} // Initially hidden, ArenaDisplay will manage visibility
+            style={{ display: 'grid' }} // Initially hidden, ArenaDisplay will manage visibility
         >
         <div 
             id="instructions" 
@@ -111,3 +57,4 @@ export default function GameUIOverlay() {
     </div>
   );
 }
+
