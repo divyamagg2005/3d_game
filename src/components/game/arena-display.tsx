@@ -18,9 +18,9 @@ interface DayNightPhase {
 const dayNightCycleConfig = {
   cycleDuration: 120, // 120 seconds for a full cycle (2 minutes)
   phases: [
-    { name: 'Day', duration: 0.4, ambient: [0xffffff, 1.2], directional: [0xffffff, 1.8], background: 0xCAEFFF, fog: 0xCAEFFF }, // Very bright day
+    { name: 'Day', duration: 0.4, ambient: [0xffffff, 1.8], directional: [0xffffff, 2.5], background: 0xCAEFFF, fog: 0xCAEFFF }, // Very bright day
     { name: 'Dusk', duration: 0.15, ambient: [0xaa7744, 0.4], directional: [0xaa7744, 0.5], background: 0x403050, fog: 0x403050 }, // Dimming, warm to cool
-    { name: 'Night', duration: 0.3, ambient: [0x101020, 0.15], directional: [0x151525, 0.2], background: 0x000010, fog: 0x000010 }, // Very dark
+    { name: 'Night', duration: 0.3, ambient: [0x101020, 0.05], directional: [0x151525, 0.1], background: 0x000010, fog: 0x000010 }, // Very dark
     { name: 'Dawn', duration: 0.15, ambient: [0xccaa88, 0.6], directional: [0xccaa88, 0.9], background: 0x605070, fog: 0x605070 }, // Brightening, cool to warm
   ] as DayNightPhase[],
 };
@@ -108,15 +108,19 @@ export default function ArenaDisplay() {
         if (isPaused.current) {
           if (controlsRef.current?.isLocked) {
             controlsRef.current.unlock(); 
-          } else {
-            if (blockerEl) blockerEl.style.display = 'grid';
-            if (pausedMessageEl) pausedMessageEl.style.display = 'block';
-            if (instructionsEl) instructionsEl.style.display = 'none';
           }
+          if (blockerEl) blockerEl.style.display = 'grid';
+          if (pausedMessageEl) pausedMessageEl.style.display = 'block';
+          if (instructionsEl) instructionsEl.style.display = 'none';
         } else {
           if (pausedMessageEl) pausedMessageEl.style.display = 'none';
-          if (instructionsEl) instructionsEl.style.display = ''; 
-          if (blockerEl && !controlsRef.current?.isLocked) blockerEl.style.display = 'grid';
+          if (blockerEl && !controlsRef.current?.isLocked) {
+             if (instructionsEl) instructionsEl.style.display = '';
+             blockerEl.style.display = 'grid';
+          } else if (blockerEl && controlsRef.current?.isLocked) {
+            blockerEl.style.display = 'none';
+            if (instructionsEl) instructionsEl.style.display = 'none';
+          }
         }
         break;
       }
@@ -214,25 +218,27 @@ export default function ArenaDisplay() {
     controls.addEventListener('unlock', onUnlockHandler);
       
     if (pausedMessageElement) pausedMessageElement.style.display = 'none';
-    if (!controls.isLocked && currentMount) { 
-      if (blockerElement) blockerElement.style.display = 'grid';
-      if (instructionsElement) instructionsElement.style.display = '';
-      if (isPaused.current) { 
-           if (pausedMessageElement) pausedMessageElement.style.display = 'block';
-           if (instructionsElement) instructionsElement.style.display = 'none';
+    if (currentMount) {
+      if (!controls.isLocked ) {
+        if (blockerElement) blockerElement.style.display = 'grid';
+        if (instructionsElement) instructionsElement.style.display = '';
+        if (isPaused.current) { 
+             if (pausedMessageElement) pausedMessageElement.style.display = 'block';
+             if (instructionsElement) instructionsElement.style.display = 'none';
+        }
+      } else {
+        if (blockerElement) blockerElement.style.display = 'none';
+        if (instructionsElement) instructionsElement.style.display = 'none';
+        if (pausedMessageElement) pausedMessageElement.style.display = 'none';
+        isPaused.current = false; 
       }
-    } else {
-      if (blockerElement) blockerElement.style.display = 'none';
-      if (instructionsElement) instructionsElement.style.display = 'none';
-      if (pausedMessageElement) pausedMessageElement.style.display = 'none';
-      isPaused.current = false; 
     }
     
     ambientLightRef.current = new THREE.AmbientLight();
     scene.add(ambientLightRef.current);
 
     directionalLightRef.current = new THREE.DirectionalLight();
-    directionalLightRef.current.position.set(20, 50, 20); // Sun position
+    directionalLightRef.current.position.set(20, 50, 20);
     directionalLightRef.current.castShadow = true;
     directionalLightRef.current.shadow.mapSize.width = 2048;
     directionalLightRef.current.shadow.mapSize.height = 2048;
@@ -244,23 +250,28 @@ export default function ArenaDisplay() {
     directionalLightRef.current.shadow.camera.bottom = -GROUND_SIZE;
     scene.add(directionalLightRef.current);
     
-    // Texture Loading
     const textureLoader = new THREE.TextureLoader();
-    const groundTexture = textureLoader.load('/textures/ground-texture.jpeg');
-    const roofTexture = textureLoader.load('/textures/roof-texture.jpeg');
-    const wallTexture1 = textureLoader.load('/textures/wall-texture-1.jpeg'); // Residential
-    const wallTexture2 = textureLoader.load('/textures/wall-texture-2.jpeg'); // Commercial & Downtown
-    const wallTexture3 = textureLoader.load('/textures/wall-texture-3.jpeg'); // Industrial
+    const textureLoadError = (textureName: string) => (error: ErrorEvent) => {
+      console.error(`ArenaDisplay: Error loading texture '${textureName}':`, error);
+    };
+
+    const groundTexture = textureLoader.load('/textures/ground-texture.jpeg', undefined, undefined, textureLoadError('ground-texture.jpeg'));
+    const roofTexture = textureLoader.load('/textures/roof-texture.jpeg', undefined, undefined, textureLoadError('roof-texture.jpeg'));
+    const wallTexture1 = textureLoader.load('/textures/wall-texture-1.jpeg', undefined, undefined, textureLoadError('wall-texture-1.jpeg'));
+    const wallTexture2 = textureLoader.load('/textures/wall-texture-2.jpeg', undefined, undefined, textureLoadError('wall-texture-2.jpeg'));
+    const wallTexture3 = textureLoader.load('/textures/wall-texture-3.jpeg', undefined, undefined, textureLoadError('wall-texture-3.jpeg'));
+
 
     const allTextures = [groundTexture, roofTexture, wallTexture1, wallTexture2, wallTexture3];
     allTextures.forEach(texture => {
-      texture.wrapS = THREE.RepeatWrapping;
-      texture.wrapT = THREE.RepeatWrapping;
+      if (texture) { // Check if texture loaded, might be null on error
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+      }
     });
 
-    groundTexture.repeat.set(GROUND_SIZE / 10, GROUND_SIZE / 10); 
+    if (groundTexture) groundTexture.repeat.set(GROUND_SIZE / 10, GROUND_SIZE / 10);
 
-    // Materials
     const texturedGroundMaterial = new THREE.MeshStandardMaterial({ 
       map: groundTexture, 
       roughness: 0.9, 
@@ -269,7 +280,7 @@ export default function ArenaDisplay() {
     
     const placeholderBottomMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9, metalness: 0.1 });
 
-    const makeBuildingFaceMaterials = (wallMap: THREE.Texture, roofMap: THREE.Texture, sideRoughness: number, sideMetalness: number) => [
+    const makeBuildingFaceMaterials = (wallMap: THREE.Texture | null, roofMap: THREE.Texture | null, sideRoughness: number, sideMetalness: number) => [
       new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }), 
       new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }), 
       new THREE.MeshStandardMaterial({ map: roofMap, roughness: 0.8, metalness: 0.2 }),    
@@ -315,7 +326,6 @@ export default function ArenaDisplay() {
     const buildingOffset = GROUND_SIZE / 4; 
     const buildings: THREE.Mesh[] = [];
 
-    // Function to add a building
     const addBuilding = (geometry: THREE.BufferGeometry, materials: THREE.Material | THREE.Material[], x: number, y: number, z: number) => {
       const building = new THREE.Mesh(geometry, materials);
       building.position.set(x, y, z);
@@ -325,24 +335,28 @@ export default function ArenaDisplay() {
       buildings.push(building);
     };
     
-    // Residential Area (More houses and blocks)
+    // Residential Area
     addBuilding(new THREE.BoxGeometry(4, 3, 5), residentialMaterials, -buildingOffset, 1.5, -buildingOffset + 5);
     addBuilding(new THREE.BoxGeometry(5, 2.5, 4), residentialMaterials, -buildingOffset + 8, 1.25, -buildingOffset -2);
     addBuilding(new THREE.BoxGeometry(6, 8, 5), residentialMaterials, -buildingOffset - 5, 4, -buildingOffset - 8);
     addBuilding(new THREE.BoxGeometry(4.5, 3.5, 5.5), residentialMaterials, -buildingOffset - 12, 1.75, -buildingOffset + 10);
     addBuilding(new THREE.BoxGeometry(5, 3, 4.5), residentialMaterials, -buildingOffset + 15, 1.5, -buildingOffset + 15);
     addBuilding(new THREE.BoxGeometry(3.5, 2, 6), residentialMaterials, -buildingOffset + 2, 1, -buildingOffset -15);
+    addBuilding(new THREE.BoxGeometry(4, 2, 4), residentialMaterials, -buildingOffset + 20, 1, -buildingOffset + 5);
+    addBuilding(new THREE.BoxGeometry(5, 4, 5), residentialMaterials, -buildingOffset - 18, 2, -buildingOffset - 18);
 
 
-    // Commercial Zone (More shops and offices)
+    // Commercial Zone
     addBuilding(new THREE.BoxGeometry(7, 5, 6), commercialMaterials, buildingOffset, 2.5, -buildingOffset);
     addBuilding(new THREE.BoxGeometry(5, 10, 5), commercialMaterials, buildingOffset + 10, 5, -buildingOffset + 8);
     addBuilding(new THREE.BoxGeometry(8, 6, 7), commercialMaterials, buildingOffset - 8, 3, -buildingOffset - 10);
     addBuilding(new THREE.BoxGeometry(6, 9, 6), commercialMaterials, buildingOffset + 18, 4.5, -buildingOffset - 5);
     addBuilding(new THREE.BoxGeometry(7.5, 5.5, 6.5), commercialMaterials, buildingOffset + 3, 2.75, -buildingOffset + 18);
+    addBuilding(new THREE.BoxGeometry(6.5, 7, 5), commercialMaterials, buildingOffset - 15, 3.5, -buildingOffset + 12);
+    addBuilding(new THREE.BoxGeometry(5.5, 6, 5.5), commercialMaterials, buildingOffset + 22, 3, -buildingOffset + 22);
 
 
-    // Industrial Sector (More warehouses and factories)
+    // Industrial Sector
     addBuilding(new THREE.BoxGeometry(15, 6, 10), industrialMaterials, -buildingOffset + 5, 3, buildingOffset);
     const factory = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 8), industrialMaterials);
     factory.position.set(-buildingOffset - 10, 4, buildingOffset + 12);
@@ -352,20 +366,28 @@ export default function ArenaDisplay() {
     factorySmokestack.castShadow = true; factorySmokestack.receiveShadow = true; scene.add(factorySmokestack); buildings.push(factorySmokestack);
     addBuilding(new THREE.BoxGeometry(12, 7, 9), industrialMaterials, -buildingOffset - 20, 3.5, buildingOffset - 5);
     addBuilding(new THREE.BoxGeometry(18, 5, 12), industrialMaterials, -buildingOffset + 20, 2.5, buildingOffset + 20);
+    addBuilding(new THREE.BoxGeometry(9, 4, 11), industrialMaterials, -buildingOffset - 2, 2, buildingOffset + 25);
+    addBuilding(new THREE.BoxGeometry(14, 6.5, 8.5), industrialMaterials, -buildingOffset + 15, 3.25, buildingOffset - 10);
 
 
-    // Downtown Area (More taller buildings)
+    // Downtown Area
     addBuilding(new THREE.BoxGeometry(6, 15, 6), downtownMaterials, buildingOffset, 7.5, buildingOffset);
     addBuilding(new THREE.BoxGeometry(7, 25, 7), downtownMaterials, buildingOffset + 12, 12.5, buildingOffset + 12); // Landmark
     addBuilding(new THREE.BoxGeometry(5.5, 20, 5.5), downtownMaterials, buildingOffset - 7, 10, buildingOffset + 8);
     addBuilding(new THREE.BoxGeometry(6.5, 18, 6.5), downtownMaterials, buildingOffset + 20, 9, buildingOffset - 10);
     addBuilding(new THREE.BoxGeometry(5, 22, 5), downtownMaterials, buildingOffset - 15, 11, buildingOffset - 15);
+    addBuilding(new THREE.BoxGeometry(8, 30, 8), downtownMaterials, buildingOffset + 25, 15, buildingOffset + 25); // Another tall one
+    addBuilding(new THREE.BoxGeometry(4.5, 16, 4.5), downtownMaterials, buildingOffset - 20, 8, buildingOffset + 20);
 
-    // Some smaller, generic obstacles for more hiding spots
+    // Smaller obstacles
     addBuilding(new THREE.BoxGeometry(2, 2, 2), commercialMaterials, 0, 1, 15);
     addBuilding(new THREE.BoxGeometry(3, 1.5, 4), residentialMaterials, -10, 0.75, 20);
     addBuilding(new THREE.BoxGeometry(2.5, 3, 2.5), industrialMaterials, 15, 1.5, -20);
     addBuilding(new THREE.BoxGeometry(4, 2.5, 3), downtownMaterials, 25, 1.25, 25);
+    addBuilding(new THREE.BoxGeometry(1.5, 1.5, 3), residentialMaterials, -25, 0.75, -25);
+    addBuilding(new THREE.BoxGeometry(3.5, 2, 2), commercialMaterials, 20, 1, 0);
+    addBuilding(new THREE.BoxGeometry(2, 4, 2), downtownMaterials, -18, 2, 10);
+    addBuilding(new THREE.BoxGeometry(3, 3, 3), industrialMaterials, 10, 1.5, -10);
 
 
     document.addEventListener('keydown', onKeyDown);
@@ -421,7 +443,6 @@ export default function ArenaDisplay() {
     };
     animate();
 
-    // Day/Night cycle interval
     const cycleIntervalId = setInterval(() => {
       if (isPaused.current) return;
 
@@ -443,6 +464,10 @@ export default function ArenaDisplay() {
           }
           accumulatedDuration += phaseActualDuration;
         }
+        
+        // Ensure segmentProgress is always between 0 and 1
+        segmentProgress = Math.max(0, Math.min(1, segmentProgress));
+
 
         const currentPhase = dayNightCycleConfig.phases[currentPhaseIndex];
         const nextPhase = dayNightCycleConfig.phases[nextPhaseIndex];
@@ -457,7 +482,7 @@ export default function ArenaDisplay() {
         };
         return { currentTime: newTime, currentPhaseDetails: newDetails };
       });
-    }, 1000); // Update cycle every second
+    }, 1000); 
 
 
     return () => {
@@ -481,7 +506,7 @@ export default function ArenaDisplay() {
         controlsRef.current.dispose();
       }
 
-      allTextures.forEach(texture => texture.dispose());
+      allTextures.forEach(texture => { if (texture) texture.dispose() });
       placeholderBottomMaterial.dispose();
       residentialMaterials.forEach(material => material.dispose());
       commercialMaterials.forEach(material => material.dispose());
@@ -497,12 +522,10 @@ export default function ArenaDisplay() {
              sceneRef.current.traverse(object => {
                 if (object instanceof THREE.Mesh) {
                     if (object.geometry) object.geometry.dispose();
-                    // Materials are disposed above or handled by the arrays
                 }
              });
              buildings.forEach(building => {
                 if(building.geometry) building.geometry.dispose();
-                // materials disposed above
              });
          }
       }
@@ -535,3 +558,5 @@ export default function ArenaDisplay() {
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
 
+
+      
