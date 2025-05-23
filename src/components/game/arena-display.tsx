@@ -18,10 +18,10 @@ interface DayNightPhase {
 const dayNightCycleConfig = {
   cycleDuration: 120, // 120 seconds for a full cycle (2 minutes)
   phases: [
-    { name: 'Day', duration: 0.4, ambient: [0xffffff, 1.8], directional: [0xffffff, 2.5], background: 0xCAEFFF, fog: 0xCAEFFF },
-    { name: 'Dusk', duration: 0.15, ambient: [0xaa7744, 0.4], directional: [0xaa7744, 0.5], background: 0x403050, fog: 0x403050 },
-    { name: 'Night', duration: 0.3, ambient: [0x101020, 0.05], directional: [0x151525, 0.1], background: 0x000010, fog: 0x000010 },
-    { name: 'Dawn', duration: 0.15, ambient: [0xccaa88, 0.6], directional: [0xccaa88, 0.9], background: 0x605070, fog: 0x605070 },
+    { name: 'Day', duration: 0.4, ambient: [0xffffff, 1.8], directional: [0xffffff, 2.5], background: 0xCAEFFF, fog: 0xCAEFFF }, // Very bright day
+    { name: 'Dusk', duration: 0.15, ambient: [0xffaa77, 0.4], directional: [0xffaa77, 0.5], background: 0x403050, fog: 0x403050 }, // Warm, dimming
+    { name: 'Night', duration: 0.3, ambient: [0x101020, 0.02], directional: [0x151525, 0.05], background: 0x00000A, fog: 0x00000A }, // Very dark
+    { name: 'Dawn', duration: 0.15, ambient: [0x88aabb, 0.3], directional: [0x88aabb, 0.4], background: 0x304060, fog: 0x304060 }, // Cool, brightening
   ] as DayNightPhase[],
 };
 
@@ -45,6 +45,38 @@ function getInterpolatedFloat(val1: number, val2: number, factor: number): numbe
   return val1 + (val2 - val1) * factor;
 }
 
+const PLAYER_COLLISION_RADIUS = 0.4; // Half-width/depth of player's collision box
+const PLAYER_COLLISION_HEIGHT = 1.7; // Height of player's collision box
+
+
+// Helper function for collision detection
+function checkCollisionWithObjects(
+    playerObject: THREE.Object3D,
+    obstacleMeshes: THREE.Mesh[],
+    radius: number,
+    playerHeight: number
+): boolean {
+    const playerPos = playerObject.position;
+    // Player's collision box: from Y=0 (feet) to Y=playerHeight (head)
+    const playerColliderBox = new THREE.Box3(
+        new THREE.Vector3(playerPos.x - radius, 0, playerPos.z - radius),
+        new THREE.Vector3(playerPos.x + radius, playerHeight + 0.1, playerPos.z + radius) // Add 0.1 for a bit of headroom
+    );
+
+    for (const obstacle of obstacleMeshes) {
+        if (!obstacle.geometry.boundingBox) {
+            obstacle.geometry.computeBoundingBox(); // Ensure bounding box is computed
+        }
+        // It's crucial to get the world-space bounding box
+        const obstacleBox = new THREE.Box3().copy(obstacle.geometry.boundingBox!).applyMatrix4(obstacle.matrixWorld);
+
+        if (playerColliderBox.intersectsBox(obstacleBox)) {
+            return true; // Collision detected
+        }
+    }
+    return false; // No collision
+}
+
 
 export default function ArenaDisplay() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -64,6 +96,8 @@ export default function ArenaDisplay() {
 
   const ambientLightRef = useRef<THREE.AmbientLight | null>(null);
   const directionalLightRef = useRef<THREE.DirectionalLight | null>(null);
+  const buildingsRef = useRef<THREE.Mesh[]>([]);
+
 
   const [dayNightCycle, setDayNightCycle] = useState<DayNightCycleState>(() => {
     const initialPhase = dayNightCycleConfig.phases[0];
@@ -191,7 +225,7 @@ export default function ArenaDisplay() {
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
-    camera.position.set(0, 1.7, 5); 
+    camera.position.set(0, PLAYER_COLLISION_HEIGHT, 5); 
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -253,14 +287,14 @@ export default function ArenaDisplay() {
     const textureLoader = new THREE.TextureLoader();
     const textureLoadError = (textureName: string) => (event: ErrorEvent | Event) => {
       console.error(`ArenaDisplay: Texture loading failed for '${textureName}'. Attempted path: /textures/${textureName}`);
-      if (event && 'message' in event) { // Check if it's an ErrorEvent
+      if (event && 'message' in event) { 
         const errorEvent = event as ErrorEvent;
         console.error('ErrorEvent details:', {
           message: errorEvent.message,
           filename: errorEvent.filename,
           lineno: errorEvent.lineno,
           colno: errorEvent.colno,
-          errorObject: errorEvent.error, // The actual error object
+          errorObject: errorEvent.error,
         });
       } else if (event && event.target instanceof Image) {
         console.error('Image load error on target. src:', (event.target as HTMLImageElement).src);
@@ -338,7 +372,7 @@ export default function ArenaDisplay() {
     wallW.castShadow = true; wallW.receiveShadow = true; scene.add(wallW);
 
     const buildingOffset = GROUND_SIZE / 4; 
-    const buildings: THREE.Mesh[] = [];
+    buildingsRef.current = []; // Clear previous buildings
 
     const addBuilding = (geometry: THREE.BufferGeometry, materials: THREE.Material | THREE.Material[], x: number, y: number, z: number) => {
       const building = new THREE.Mesh(geometry, materials);
@@ -346,7 +380,7 @@ export default function ArenaDisplay() {
       building.castShadow = true;
       building.receiveShadow = true;
       scene.add(building);
-      buildings.push(building);
+      buildingsRef.current.push(building); // Add to ref
     };
     
     // Residential Area
@@ -374,10 +408,10 @@ export default function ArenaDisplay() {
     addBuilding(new THREE.BoxGeometry(15, 6, 10), industrialMaterials, -buildingOffset + 5, 3, buildingOffset);
     const factory = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 8), industrialMaterials);
     factory.position.set(-buildingOffset - 10, 4, buildingOffset + 12);
-    factory.castShadow = true; factory.receiveShadow = true; scene.add(factory); buildings.push(factory);
+    factory.castShadow = true; factory.receiveShadow = true; scene.add(factory); buildingsRef.current.push(factory);
     const factorySmokestack = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 18, 16), smokestackMaterial); 
     factorySmokestack.position.set(-buildingOffset - 13.5, 9 + 1.5, buildingOffset + 14); 
-    factorySmokestack.castShadow = true; factorySmokestack.receiveShadow = true; scene.add(factorySmokestack); buildings.push(factorySmokestack);
+    factorySmokestack.castShadow = true; factorySmokestack.receiveShadow = true; scene.add(factorySmokestack); buildingsRef.current.push(factorySmokestack);
     addBuilding(new THREE.BoxGeometry(12, 7, 9), industrialMaterials, -buildingOffset - 20, 3.5, buildingOffset - 5);
     addBuilding(new THREE.BoxGeometry(18, 5, 12), industrialMaterials, -buildingOffset + 20, 2.5, buildingOffset + 20);
     addBuilding(new THREE.BoxGeometry(9, 4, 11), industrialMaterials, -buildingOffset - 2, 2, buildingOffset + 25);
@@ -393,15 +427,17 @@ export default function ArenaDisplay() {
     addBuilding(new THREE.BoxGeometry(8, 30, 8), downtownMaterials, buildingOffset + 25, 15, buildingOffset + 25); // Another tall one
     addBuilding(new THREE.BoxGeometry(4.5, 16, 4.5), downtownMaterials, buildingOffset - 20, 8, buildingOffset + 20);
 
-    // Smaller obstacles
-    addBuilding(new THREE.BoxGeometry(2, 2, 2), commercialMaterials, 0, 1, 15);
-    addBuilding(new THREE.BoxGeometry(3, 1.5, 4), residentialMaterials, -10, 0.75, 20);
-    addBuilding(new THREE.BoxGeometry(2.5, 3, 2.5), industrialMaterials, 15, 1.5, -20);
-    addBuilding(new THREE.BoxGeometry(4, 2.5, 3), downtownMaterials, 25, 1.25, 25);
-    addBuilding(new THREE.BoxGeometry(1.5, 1.5, 3), residentialMaterials, -25, 0.75, -25);
-    addBuilding(new THREE.BoxGeometry(3.5, 2, 2), commercialMaterials, 20, 1, 0);
-    addBuilding(new THREE.BoxGeometry(2, 4, 2), downtownMaterials, -18, 2, 10);
-    addBuilding(new THREE.BoxGeometry(3, 3, 3), industrialMaterials, 10, 1.5, -10);
+    // Smaller obstacles for hide and seek
+    const obstacleMaterials = [residentialMaterials, commercialMaterials, industrialMaterials, downtownMaterials];
+    for (let i = 0; i < 50; i++) {
+        const sizeX = Math.random() * 2 + 1; // 1 to 3
+        const sizeY = Math.random() * 3 + 1; // 1 to 4
+        const sizeZ = Math.random() * 2 + 1; // 1 to 3
+        const posX = (Math.random() - 0.5) * (GROUND_SIZE - sizeX);
+        const posZ = (Math.random() - 0.5) * (GROUND_SIZE - sizeZ);
+        const matIndex = Math.floor(Math.random() * obstacleMaterials.length);
+        addBuilding(new THREE.BoxGeometry(sizeX, sizeY, sizeZ), obstacleMaterials[matIndex], posX, sizeY / 2, posZ);
+    }
 
 
     document.addEventListener('keydown', onKeyDown);
@@ -431,24 +467,48 @@ export default function ArenaDisplay() {
       }
       
       if (controlsRef.current?.isLocked === true) {
+        const player = controlsRef.current.getObject();
+
+        // Update velocity (damping and acceleration)
         velocity.current.x -= velocity.current.x * 10.0 * delta;
         velocity.current.z -= velocity.current.z * 10.0 * delta;
 
         direction.current.z = Number(moveForward.current) - Number(moveBackward.current);
         direction.current.x = Number(moveRight.current) - Number(moveLeft.current);
-        direction.current.normalize();
+        direction.current.normalize(); // Prevents faster diagonal movement
 
         if (moveForward.current || moveBackward.current) velocity.current.z -= direction.current.z * PLAYER_SPEED * 10.0 * delta;
         if (moveLeft.current || moveRight.current) velocity.current.x -= direction.current.x * PLAYER_SPEED * 10.0 * delta;
         
-        controlsRef.current.moveRight(-velocity.current.x * delta);
-        controlsRef.current.moveForward(-velocity.current.z * delta);
+        const originalPlayerPosition = player.position.clone();
 
-        const camPos = controlsRef.current.getObject().position;
-        const halfGroundMinusWall = GROUND_SIZE / 2 - wallThickness / 2 - 1.0; 
+        // Attempt strafe movement
+        const strafeAmount = -velocity.current.x * delta;
+        if (Math.abs(strafeAmount) > 0.0001) {
+            controlsRef.current.moveRight(strafeAmount);
+            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, PLAYER_COLLISION_HEIGHT)) {
+                player.position.copy(originalPlayerPosition); // Revert X component by restoring original pos
+            }
+        }
+
+        // Update originalPlayerPosition for forward movement check (takes into account successful or reverted strafe)
+        const positionAfterStrafe = player.position.clone();
+
+        // Attempt forward/backward movement
+        const forwardAmount = -velocity.current.z * delta;
+        if (Math.abs(forwardAmount) > 0.0001) {
+            controlsRef.current.moveForward(forwardAmount);
+            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, PLAYER_COLLISION_HEIGHT)) {
+                player.position.copy(positionAfterStrafe); // Revert Z component
+            }
+        }
+
+        // Boundary checks (outer walls)
+        const camPos = player.position;
+        const halfGroundMinusWall = GROUND_SIZE / 2 - wallThickness / 2 - PLAYER_COLLISION_RADIUS; 
         camPos.x = Math.max(-halfGroundMinusWall, Math.min(halfGroundMinusWall, camPos.x));
         camPos.z = Math.max(-halfGroundMinusWall, Math.min(halfGroundMinusWall, camPos.z));
-        camPos.y = 1.7; 
+        camPos.y = PLAYER_COLLISION_HEIGHT; 
       }
       prevTime.current = time;
       if (rendererRef.current && sceneRef.current && cameraRef.current) {
@@ -537,9 +597,10 @@ export default function ArenaDisplay() {
                     if (object.geometry) object.geometry.dispose();
                 }
              });
-             buildings.forEach(building => {
+             buildingsRef.current.forEach(building => { // Use ref here
                 if(building.geometry) building.geometry.dispose();
              });
+             buildingsRef.current = []; // Clear ref
          }
       }
       
@@ -570,4 +631,5 @@ export default function ArenaDisplay() {
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
+
 
