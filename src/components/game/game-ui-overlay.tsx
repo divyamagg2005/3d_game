@@ -68,7 +68,8 @@ export default function GameUIOverlay() {
             className="p-8 rounded-lg bg-background/90 shadow-xl cursor-pointer"
             // ArenaDisplay will control display style
         >
-          <p className="text-2xl font-bold mb-4">Click to Play</p>
+          <p className="text-2xl font-bold mb-4">Click to Start Your Survival!</p>
+          <p className="text-lg mb-3">Explore the arena and see how long you can last.</p>
           <p className="text-lg">Use W, A, S, D to move.</p>
           <p className="text-lg">Move mouse to look.</p>
           <p className="text-lg">Press SPACE to Jump (up to 4 times).</p>
