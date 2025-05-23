@@ -247,6 +247,9 @@ export default function ArenaDisplay() {
     // Desktop Pointer Lock logic
     if (!isPaused.current && controlsRef.current && !controlsRef.current.isLocked) {
       if (typeof controlsRef.current.domElement.requestPointerLock === 'function') {
+        if (rendererRef.current && rendererRef.current.domElement) {
+            rendererRef.current.domElement.focus(); // Explicitly focus the canvas
+        }
         controlsRef.current.lock();
       } else {
         console.error('ArenaDisplay: requestPointerLock API is not a function on domElement. Pointer lock cannot be initiated.');
@@ -568,32 +571,32 @@ export default function ArenaDisplay() {
 
 
       if (onGround.current) {
+        // When on ground, clamp Y position to ensure stability
+        player.position.y = playerLastSurfaceY.current + currentEyeOffset;
+        verticalVelocity.current = 0; // No vertical movement when grounded
+
+        // Check if player moved off the edge of their current support surface
         let stillSupported = false;
         const playerFeetY = player.position.y - currentEyeOffset;
-        // Ensure Y position is clamped to surface
-        player.position.y = playerLastSurfaceY.current + currentEyeOffset;
-        verticalVelocity.current = 0;
 
-
-        // Check if still on main ground
-        if (Math.abs(playerFeetY - 0) < 0.01 && Math.abs(player.position.y - (playerLastSurfaceY.current + currentEyeOffset)) < 0.01) {
+        // Check main ground
+        if (Math.abs(playerFeetY - 0) < 0.01) {
              stillSupported = true;
-        } else { // Check if still on a building top
+        } else { // Check building tops
           for (const building of buildingsRef.current) {
-            if (!building.geometry.parameters || building === ground) continue; // ground is plane, no height
+            if (!building.geometry.parameters || building === ground) continue;
             const geomParams = building.geometry.parameters as any;
             const buildingHeight = geomParams.height;
             const buildingBaseY = building.position.y - buildingHeight / 2;
             const buildingTopActualY = buildingBaseY + buildingHeight;
 
-            const halfWidth = geomParams.width ? geomParams.width / 2 : (geomParams.radiusTop || 0); // Handle Cylinder too
-            const halfDepth = geomParams.depth ? geomParams.depth / 2 : (geomParams.radiusTop || 0); // Handle Cylinder too
+            const halfWidth = geomParams.width ? geomParams.width / 2 : (geomParams.radiusTop || 0);
+            const halfDepth = geomParams.depth ? geomParams.depth / 2 : (geomParams.radiusTop || 0);
 
             if (
               player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
               player.position.z >= building.position.z - halfDepth && player.position.z <= building.position.z + halfDepth &&
-              Math.abs(playerFeetY - buildingTopActualY) < 0.01 &&
-              Math.abs(player.position.y - (playerLastSurfaceY.current + currentEyeOffset)) < 0.01
+              Math.abs(playerFeetY - buildingTopActualY) < 0.01
             ) {
               stillSupported = true;
               break;
@@ -606,12 +609,6 @@ export default function ArenaDisplay() {
         }
       }
       
-      // If player is on ground, ensure their Y position is correctly clamped and vertical velocity is zero.
-      if (onGround.current) {
-        player.position.y = playerLastSurfaceY.current + currentEyeOffset;
-        verticalVelocity.current = 0;
-      }
-
 
       if (!onGround.current) {
         const previousPlayerY = player.position.y;
