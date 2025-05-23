@@ -1,62 +1,24 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
-import { Shield, Expand, Minimize } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+// Button and related imports for fullscreen removed
 
 export default function GameUIOverlay() {
-  const [isClient, setIsClient] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-
-
-  useEffect(() => {
-    setIsClient(true);
-    
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
-
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(err => {
-        console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
-      });
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      }
-    }
-  };
-
+  // isFullscreen, toggleFullscreen, and related useEffect removed
 
   return (
     <div className="absolute inset-0 pointer-events-none p-4 md:p-6 flex flex-col text-foreground">
-      {isClient && (
-        <>
-         <div className="self-end pointer-events-auto z-30">
-            <Button variant="ghost" size="icon" onClick={toggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}>
-              {isFullscreen ? <Minimize className="h-6 w-6" /> : <Expand className="h-6 w-6" />}
-            </Button>
-          </div>
+      {/* Fullscreen button and its wrapper div removed */}
 
-          <div className="mt-auto self-start pointer-events-auto z-30">
-              <Card className="bg-card/80 backdrop-blur-sm border-border shadow-md">
-              <CardContent className="p-2 md:p-3">
-                  <Shield className="h-8 w-8 md:h-10 md:w-10 text-gray-400" />
-              </CardContent>
-              </Card>
-          </div>
-        </>
-      )}
+      <div className="mt-auto self-start pointer-events-auto z-30">
+          <Card className="bg-card/80 backdrop-blur-sm border-border shadow-md">
+          <CardContent className="p-2 md:p-3">
+              <Shield className="h-8 w-8 md:h-10 md:w-10 text-gray-400" />
+          </CardContent>
+          </Card>
+      </div>
 
        <div
             id="blocker"
@@ -91,7 +53,3 @@ export default function GameUIOverlay() {
     </div>
   );
 }
-
-
-    
-
