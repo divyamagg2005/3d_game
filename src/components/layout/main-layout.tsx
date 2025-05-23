@@ -21,7 +21,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 max-w-screen-2xl items-center">
+        <div className="container flex h-14 max-w-screen-2xl items-center"> {/* Changed h-16 to h-14 */}
           <Link href="/" className="mr-6 flex items-center space-x-2">
             <GameLogo className="h-8 w-8 text-primary" />
             <span className="font-bold text-xl sm:inline-block text-primary hover:text-accent transition-colors">
@@ -62,3 +62,4 @@ export default function MainLayout({ children }: MainLayoutProps) {
     </div>
   );
 }
+
