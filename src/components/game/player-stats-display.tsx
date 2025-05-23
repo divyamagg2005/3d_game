@@ -1,18 +1,18 @@
 
 'use client';
 
-import { Heart, Timer, CheckSquare, Shield, AlertTriangle } from 'lucide-react';
+import { Heart, Timer, CheckSquare, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useState, useEffect } from 'react';
 
 // TODO: These values will eventually come from game state props
-const MAX_HEALTH = 100;
+const MAX_HEALTH = 150; // Updated to 150
 const INITIAL_TIME = 90;
 const TOTAL_CHECKPOINTS = 5;
 
 export default function PlayerStatsDisplay() {
-  const [currentHealth, setCurrentHealth] = useState(MAX_HEALTH);
+  const [currentHealth, setCurrentHealth] = useState(MAX_HEALTH); // Initial health is now 150
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
   const [checkpointsFound, setCheckpointsFound] = useState(0);
   const [villainNearby, setVillainNearby] = useState(false); // Placeholder state
