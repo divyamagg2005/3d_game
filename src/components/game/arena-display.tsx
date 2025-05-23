@@ -142,7 +142,7 @@ export default function ArenaDisplay() {
   const isAnimatingAttackRef = useRef(false);
   const attackAnimStartTimeRef = useRef(0);
 
-  const { setCurrentHealth } = usePlayerHealth();
+  const { setCurrentHealth, setInvincibilityActive } = usePlayerHealth();
   const playerHealthRef = useRef(PLAYER_MAX_HEALTH);
   const isInvincibleRef = useRef(false);
   const invincibilityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -314,17 +314,15 @@ export default function ArenaDisplay() {
             console.log("Player Action: Shoot Gun 2 - Damage:", GUN2_DAMAGE);
           } else if (equippedWeaponRef.current === 'sword') {
             console.log("Player Action: Swing Sword - Damage:", SWORD_DAMAGE);
-          } else { // No weapon equipped or other type (health/invincibility)
+          } else { 
             console.log("Player Action: Punch - Damage:", PLAYER_PUNCH_DAMAGE);
-            // No specific animation for punch in hand if no weapon, camera dip is primary feedback
           }
-          // Attack animation reset is handled within the animate loop or after a delay for weapon anims
           break;
         case 2: // Right mouse button
           isKickingRef.current = true; 
           setTimeout(() => isKickingRef.current = false, 100);
           console.log("Player Action: Kick - Damage:", PLAYER_KICK_DAMAGE);
-          isAnimatingAttackRef.current = false; // Kicks are instant, no complex animation
+          isAnimatingAttackRef.current = false; 
           break;
         default:
             isAnimatingAttackRef.current = false;
@@ -414,6 +412,8 @@ export default function ArenaDisplay() {
     renderer.domElement.tabIndex = -1; 
     currentMount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
+    rendererRef.current.domElement.focus();
+
 
     const controls = new PointerLockControls(camera, renderer.domElement);
     controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002; 
@@ -849,6 +849,7 @@ export default function ArenaDisplay() {
                         console.log("Player health restored to maximum!");
                     } else if (powerUp.type === 'invincibility') {
                         isInvincibleRef.current = true;
+                        setInvincibilityActive(INVINCIBILITY_DURATION); // Notify context
                         console.log(`Player is INVINCIBLE for ${INVINCIBILITY_DURATION} seconds!`);
                         if (invincibilityTimeoutRef.current) {
                             clearTimeout(invincibilityTimeoutRef.current);
@@ -856,9 +857,9 @@ export default function ArenaDisplay() {
                         invincibilityTimeoutRef.current = setTimeout(() => {
                             isInvincibleRef.current = false;
                             console.log("Invincibility WORE OFF!");
+                            // No need to call clearInvincibility here, context timer handles display
                         }, INVINCIBILITY_DURATION * 1000);
-                         // Does not change equipped weapon
-                    } else { // It's a weapon
+                    } else { 
                         if (equippedWeaponRef.current && handheldWeaponsRef.current[equippedWeaponRef.current as Exclude<PowerUpType, 'health' | 'invincibility'>]) {
                             const oldWeaponMesh = handheldWeaponsRef.current[equippedWeaponRef.current as Exclude<PowerUpType, 'health' | 'invincibility'>];
                             if (oldWeaponMesh && oldWeaponMesh.parent === cameraRef.current) {
@@ -905,13 +906,12 @@ export default function ArenaDisplay() {
                 }
             } else {
                  if (animProgress >= 1) isAnimatingAttackRef.current = false;
-                 if (!isAnimatingAttackRef.current && isPunchingRef.current){ // Reset punch anim flag if no weapon
-                    // Punching ref is reset by timeout, this ensures isAnimatingAttackRef also resets
+                 if (!isAnimatingAttackRef.current && isPunchingRef.current){ 
                  }
             }
-        } else if (isPunchingRef.current && !equippedWeaponRef.current) { // If punching with no weapon, ensure attack animation flag resets
+        } else if (isPunchingRef.current && !equippedWeaponRef.current) { 
             const currentTime = performance.now();
-             if ((currentTime - attackAnimStartTimeRef.current) / 1000 > 0.1) { // Punch is very short
+             if ((currentTime - attackAnimStartTimeRef.current) / 1000 > 0.1) { 
                 isAnimatingAttackRef.current = false;
              }
         }
@@ -1062,7 +1062,7 @@ export default function ArenaDisplay() {
       spotLightTargetRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setCurrentHealth]); 
+  }, [setCurrentHealth, setInvincibilityActive]); 
 
   useEffect(() => {
     if (sceneRef.current && ambientLightRef.current && directionalLightRef.current) {
@@ -1082,3 +1082,4 @@ export default function ArenaDisplay() {
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
+

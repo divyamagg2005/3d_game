@@ -1,23 +1,22 @@
 
 'use client';
 
-import { Heart, Timer, CheckSquare, AlertTriangle } from 'lucide-react';
+import { Heart, Timer, CheckSquare, AlertTriangle, ShieldEllipsis } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useEffect, useState } from 'react';
 import { usePlayerHealth } from '@/contexts/player-health-context';
 
-
 // Timer and checkpoint constants remain for placeholder functionality
 const INITIAL_TIME = 90;
 const TOTAL_CHECKPOINTS = 5;
 
-
 export default function PlayerStatsDisplay() {
-  const { currentHealth, maxHealth } = usePlayerHealth();
+  const { currentHealth, maxHealth, invincibilityEndTime } = usePlayerHealth();
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
   const [checkpointsFound, setCheckpointsFound] = useState(0);
   const [villainNearby, setVillainNearby] = useState(false); // Placeholder state
+  const [invincibilityTimeLeft, setInvincibilityTimeLeft] = useState<number | null>(null);
 
   // Placeholder effect to simulate timer countdown - replace with actual game logic
   useEffect(() => {
@@ -34,6 +33,35 @@ export default function PlayerStatsDisplay() {
     }, 7000); // Toggle every 7 seconds
     return () => clearInterval(villainToggleInterval);
   }, []);
+
+  // Invincibility Timer Logic
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+
+    if (invincibilityEndTime) {
+      const updateTimer = () => {
+        const now = Date.now();
+        const remaining = Math.max(0, Math.ceil((invincibilityEndTime - now) / 1000));
+        setInvincibilityTimeLeft(remaining);
+
+        if (remaining <= 0) {
+          setInvincibilityTimeLeft(null); // Timer ends
+          // No need to call clearInvincibility here, ArenaDisplay manages isInvincibleRef
+          if (interval) clearInterval(interval);
+        }
+      };
+
+      updateTimer(); // Initial call
+      interval = setInterval(updateTimer, 1000);
+    } else {
+      setInvincibilityTimeLeft(null); // Clear timer if invincibility ends externally
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [invincibilityEndTime]);
+
 
   const healthPercentage = maxHealth > 0 ? (currentHealth / maxHealth) * 100 : 0;
 
@@ -53,6 +81,22 @@ export default function PlayerStatsDisplay() {
           </p>
         </CardContent>
       </Card>
+
+      {invincibilityTimeLeft !== null && invincibilityTimeLeft > 0 && (
+        <Card className="bg-accent/80 backdrop-blur-sm border-accent shadow-lg">
+          <CardHeader className="p-3">
+            <CardTitle className="text-lg flex items-center text-accent-foreground">
+              <ShieldEllipsis className="h-5 w-5 mr-2 animate-pulse" />
+              Invincible!
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <p className="text-3xl font-bold text-center text-accent-foreground">
+              {invincibilityTimeLeft}s
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="bg-card/80 backdrop-blur-sm border-border shadow-lg">
         <CardHeader className="p-3">
@@ -82,7 +126,6 @@ export default function PlayerStatsDisplay() {
         </CardContent>
       </Card>
 
-      {/* Nearby Villain Alert */}
       <Card className="bg-card/80 backdrop-blur-sm border-border shadow-lg">
         <CardHeader className="p-3">
           <CardTitle className="text-lg flex items-center text-primary-foreground">

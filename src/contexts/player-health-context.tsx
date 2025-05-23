@@ -2,28 +2,41 @@
 'use client';
 
 import type { ReactNode, Dispatch, SetStateAction } from 'react';
-import { createContext, useContext, useState, useMemo } from 'react';
+import { createContext, useContext, useState, useMemo, useCallback } from 'react';
 import { PLAYER_MAX_HEALTH } from '@/config/game-constants';
 
 interface PlayerHealthContextType {
   currentHealth: number;
   setCurrentHealth: Dispatch<SetStateAction<number>>;
   maxHealth: number;
+  invincibilityEndTime: number | null; // Timestamp when invincibility ends
+  setInvincibilityActive: (durationInSeconds: number) => void;
+  clearInvincibility: () => void; // Not strictly needed by PlayerStatsDisplay but good for completeness
 }
 
 const PlayerHealthContext = createContext<PlayerHealthContextType | undefined>(undefined);
 
 export function PlayerHealthProvider({ children }: { children: ReactNode }) {
   const [currentHealth, setCurrentHealth] = useState<number>(PLAYER_MAX_HEALTH);
-  const maxHealth = PLAYER_MAX_HEALTH; // Max health is constant for now
+  const [invincibilityEndTime, setInvincibilityEndTime] = useState<number | null>(null);
+  const maxHealth = PLAYER_MAX_HEALTH;
 
-  // Memoize the context value to prevent unnecessary re-renders of consumers
-  // if the provider re-renders but the health values haven't changed.
+  const setInvincibilityActive = useCallback((durationInSeconds: number) => {
+    setInvincibilityEndTime(Date.now() + durationInSeconds * 1000);
+  }, []);
+
+  const clearInvincibility = useCallback(() => {
+    setInvincibilityEndTime(null);
+  }, []);
+
   const contextValue = useMemo(() => ({
     currentHealth,
     setCurrentHealth,
     maxHealth,
-  }), [currentHealth, maxHealth]); // setCurrentHealth is stable
+    invincibilityEndTime,
+    setInvincibilityActive,
+    clearInvincibility,
+  }), [currentHealth, maxHealth, invincibilityEndTime, setInvincibilityActive, clearInvincibility]);
 
   return (
     <PlayerHealthContext.Provider value={contextValue}>
