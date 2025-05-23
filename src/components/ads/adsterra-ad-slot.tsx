@@ -7,7 +7,7 @@ interface AdsterraAdSlotProps {
   adKey: string;
   configHeight: number;
   configWidth: number;
-  containerIdSuffix: string;
+  containerIdSuffix: string; // To make container IDs unique if multiple slots are on the page
 }
 
 const AdsterraAdSlot: React.FC<AdsterraAdSlotProps> = ({
@@ -41,7 +41,7 @@ const AdsterraAdSlot: React.FC<AdsterraAdSlotProps> = ({
             'width' : ${configWidth},
             'params' : {}
           };
-          console.log('atOptions set for ${containerIdSuffix}:', JSON.parse(JSON.stringify(atOptions)));
+          console.log('atOptions set for ${containerIdSuffix} (using adKey: ${adKey}):', JSON.parse(JSON.stringify(atOptions)));
         `;
         adContainerRef.current.appendChild(atOptionsScript);
 
