@@ -13,7 +13,8 @@ import {
     PLAYER_RUN_MULTIPLIER,
     PLAYER_NORMAL_HEIGHT,
     PLAYER_CROUCH_HEIGHT,
-    PLAYER_CROUCH_SPEED_MULTIPLIER
+    PLAYER_CROUCH_SPEED_MULTIPLIER,
+    MAX_AIR_JUMPS
 } from '@/config/game-constants';
 
 interface DayNightPhase {
@@ -104,6 +105,8 @@ export default function ArenaDisplay() {
   const onGround = useRef(true);
   const isRunning = useRef(false);
   const isCrouching = useRef(false);
+  const jumpsMadeInAirRef = useRef(0);
+
 
   const direction = useRef(new THREE.Vector3());
   const prevTime = useRef(performance.now());
@@ -151,9 +154,15 @@ export default function ArenaDisplay() {
         moveRight.current = true;
         break;
       case 'Space':
-        if (onGround.current && !isPaused.current && controlsRef.current?.isLocked) {
-          verticalVelocity.current = PLAYER_JUMP_FORCE;
-          onGround.current = false;
+        if (!isPaused.current && controlsRef.current?.isLocked) {
+          if (onGround.current) {
+            verticalVelocity.current = PLAYER_JUMP_FORCE;
+            onGround.current = false;
+            jumpsMadeInAirRef.current = 0; 
+          } else if (jumpsMadeInAirRef.current < MAX_AIR_JUMPS) {
+            verticalVelocity.current = PLAYER_JUMP_FORCE; 
+            jumpsMadeInAirRef.current++;
+          }
         }
         break;
       case 'ShiftLeft':
@@ -548,6 +557,7 @@ export default function ArenaDisplay() {
         }
         if (!stillSupported) {
           onGround.current = false; // No longer supported, start falling
+          jumpsMadeInAirRef.current = 0; // Reset air jumps if slid off an edge
         }
       }
 
@@ -584,6 +594,7 @@ export default function ArenaDisplay() {
               player.position.y = buildingTopActualY + currentEyeOffset;
               verticalVelocity.current = 0;
               onGround.current = true;
+              jumpsMadeInAirRef.current = 0;
               landedOnObject = true;
               playerLastSurfaceY.current = buildingTopActualY;
               break;
@@ -597,6 +608,7 @@ export default function ArenaDisplay() {
                 player.position.y = targetPlayerYOnMainGround;
                 verticalVelocity.current = 0;
                 onGround.current = true;
+                jumpsMadeInAirRef.current = 0;
                 playerLastSurfaceY.current = 0;
              }
           }

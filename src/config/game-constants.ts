@@ -10,3 +10,4 @@ export const PLAYER_RUN_MULTIPLIER = 1.8; // Speed multiplier when running
 export const PLAYER_NORMAL_HEIGHT = 1.7; // Player's eye-level height when standing
 export const PLAYER_CROUCH_HEIGHT = 1.0; // Player's eye-level height when crouching
 export const PLAYER_CROUCH_SPEED_MULTIPLIER = 0.5; // Speed multiplier when crouching
+export const MAX_AIR_JUMPS = 3; // Maximum number of jumps allowed in the air after the initial ground jump
