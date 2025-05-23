@@ -51,13 +51,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </div>
 
         <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-l border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
-           {isClient && ( // Only render AdsterraAdSlot on the client
-            <AdsterraAdSlot
-              adKey="b489cb229500818212b8f74504664a80" // Using the same adKey. If Adsterra needs different keys for different slots, update this.
-              configWidth={160}
-              configHeight={600}
-              containerIdSuffix="right-sidebar"
-            />
+           {isClient && (
+            <div className="w-full h-full flex items-center justify-center bg-muted/10 text-muted-foreground text-sm p-4 text-center rounded-md border border-dashed border-border">
+              Your Ad Code for the Right Sidebar (e.g., from a different provider) can be placed here.
+            </div>
           )}
         </aside>
       </main>
