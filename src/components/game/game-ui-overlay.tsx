@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react';
 import { Shield, Expand, Minimize } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import MobileControlsOverlay from './mobile-controls-overlay'; // Import the new component
 
 export default function GameUIOverlay() {
   const [isClient, setIsClient] = useState(false);
@@ -43,13 +42,13 @@ export default function GameUIOverlay() {
     <div className="absolute inset-0 pointer-events-none p-4 md:p-6 flex flex-col text-foreground">
       {isClient && (
         <>
-         <div className="self-end pointer-events-auto z-30"> {/* Ensure fullscreen button is above mobile controls overlay */}
+         <div className="self-end pointer-events-auto z-30">
             <Button variant="ghost" size="icon" onClick={toggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}>
               {isFullscreen ? <Minimize className="h-6 w-6" /> : <Expand className="h-6 w-6" />}
             </Button>
           </div>
 
-          <div className="mt-auto self-start pointer-events-auto z-30"> {/* Ensure shield is above mobile controls overlay */}
+          <div className="mt-auto self-start pointer-events-auto z-30">
               <Card className="bg-card/80 backdrop-blur-sm border-border shadow-md">
               <CardContent className="p-2 md:p-3">
                   <Shield className="h-8 w-8 md:h-10 md:w-10 text-gray-400" />
@@ -58,8 +57,6 @@ export default function GameUIOverlay() {
           </div>
         </>
       )}
-
-      <MobileControlsOverlay /> {/* Added mobile controls overlay */}
 
        <div
             id="blocker"
@@ -92,3 +89,6 @@ export default function GameUIOverlay() {
     </div>
   );
 }
+
+
+    

@@ -16,7 +16,6 @@ import {
     PLAYER_CROUCH_SPEED_MULTIPLIER,
     MAX_AIR_JUMPS
 } from '@/config/game-constants';
-import { useIsMobile } from '@/hooks/use-mobile'; // Import useIsMobile
 
 interface DayNightPhase {
   name: string;
@@ -118,8 +117,6 @@ export default function ArenaDisplay() {
   const buildingsRef = useRef<THREE.Mesh[]>([]);
   const playerLastSurfaceY = useRef(0); // Stores the Y of the surface player is on (feet level)
 
-  const isMobile = useIsMobile(); // Use the hook
-
 
   const [dayNightCycle, setDayNightCycle] = useState<DayNightCycleState>(() => {
     const initialPhase = dayNightCycleConfig.phases[0];
@@ -157,7 +154,7 @@ export default function ArenaDisplay() {
         moveRight.current = true;
         break;
       case 'Space':
-        if (!isPaused.current && (controlsRef.current?.isLocked || isMobile)) { // Allow jump on mobile even if not "locked"
+        if (!isPaused.current && controlsRef.current?.isLocked) {
           if (onGround.current) {
             verticalVelocity.current = PLAYER_JUMP_FORCE;
             onGround.current = false;
@@ -174,7 +171,7 @@ export default function ArenaDisplay() {
         break;
       case 'ControlLeft':
       case 'KeyC':
-         if (!isPaused.current && (controlsRef.current?.isLocked || isMobile)) {
+         if (!isPaused.current && controlsRef.current?.isLocked) {
             isCrouching.current = !isCrouching.current;
          }
         break;
@@ -191,24 +188,22 @@ export default function ArenaDisplay() {
           if (blockerEl) blockerEl.style.display = 'grid';
           if (pausedMessageEl) pausedMessageEl.style.display = 'block';
           if (instructionsEl) instructionsEl.style.display = 'none';
-        } else {
+        } else { // Unpausing
           if (pausedMessageEl) pausedMessageEl.style.display = 'none';
-           // If unpausing, show instructions if not locked (desktop) or hide blocker if mobile
-          if (isMobile) {
-            if (blockerEl) blockerEl.style.display = 'none';
-            if (instructionsEl) instructionsEl.style.display = 'none';
-          } else if (blockerEl && !controlsRef.current?.isLocked) {
-             if (instructionsEl) instructionsEl.style.display = '';
-             blockerEl.style.display = 'grid';
-          } else if (blockerEl && controlsRef.current?.isLocked) {
-            blockerEl.style.display = 'none';
-            if (instructionsEl) instructionsEl.style.display = 'none';
+          if (blockerEl) {
+            if (!controlsRef.current?.isLocked) {
+              blockerEl.style.display = 'grid';
+              if (instructionsEl) instructionsEl.style.display = '';
+            } else { // Game is active (pointer is locked)
+              blockerEl.style.display = 'none';
+              if (instructionsEl) instructionsEl.style.display = 'none';
+            }
           }
         }
         break;
       }
     }
-  }, [isMobile]);
+  }, []);
 
   const onKeyUp = useCallback((event: KeyboardEvent) => {
     switch (event.code) {
@@ -240,16 +235,6 @@ export default function ArenaDisplay() {
     const blockerEl = document.getElementById('blocker');
     const pausedMessageEl = document.getElementById('paused-message');
   
-    if (isMobile) {
-      // On mobile, clicking the "instructions" area (if visible) should just hide it
-      // and ensure the game isn't considered paused. Mobile controls take over.
-      if (instructionsEl) instructionsEl.style.display = 'none';
-      if (blockerEl) blockerEl.style.display = 'none';
-      if (pausedMessageEl) pausedMessageEl.style.display = 'none';
-      isPaused.current = false; // Ensure game is considered active
-      return;
-    }
-  
     // Desktop Pointer Lock logic
     if (!isPaused.current && controlsRef.current && !controlsRef.current.isLocked) {
       if (typeof controlsRef.current.domElement.requestPointerLock === 'function') {
@@ -263,12 +248,9 @@ export default function ArenaDisplay() {
         isPaused.current = false; 
       }
     }
-  }, [isMobile]);
+  }, []);
 
   const onLockHandler = useCallback(() => {
-    // This handler is for desktop pointer lock
-    if (isMobile) return; 
-
     const instructionsEl = document.getElementById('instructions');
     const blockerEl = document.getElementById('blocker');
     const pausedMessageEl = document.getElementById('paused-message');
@@ -278,12 +260,9 @@ export default function ArenaDisplay() {
     if (pausedMessageEl) pausedMessageEl.style.display = 'none';
     
     isPaused.current = false; 
-  }, [isMobile]);
+  }, []);
 
   const onUnlockHandler = useCallback(() => {
-    // This handler is for desktop pointer lock
-    if (isMobile) return;
-
     const instructionsEl = document.getElementById('instructions');
     const blockerEl = document.getElementById('blocker');
     const pausedMessageEl = document.getElementById('paused-message');
@@ -297,7 +276,7 @@ export default function ArenaDisplay() {
       if (pausedMessageEl) pausedMessageEl.style.display = 'none';
       if (instructionsEl) instructionsEl.style.display = '';
     }
-  }, [isMobile]);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !mountRef.current) return;
@@ -321,11 +300,8 @@ export default function ArenaDisplay() {
     currentMount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // Initialize PointerLockControls but be mindful of mobile context for .lock()
     const controls = new PointerLockControls(camera, renderer.domElement);
-    if (!isMobile) { // Only set pointerSpeed if not mobile, as it's irrelevant
-        controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002;
-    }
+    controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002;
     scene.add(controls.getObject()); 
     controlsRef.current = controls;
     
@@ -333,28 +309,16 @@ export default function ArenaDisplay() {
     const blockerElement = document.getElementById('blocker');
     const pausedMessageElement = document.getElementById('paused-message');
 
-    // Event listeners for pointer lock should only be effective on desktop
-    if (!isMobile) {
-        if (blockerElement) { 
-            blockerElement.addEventListener('click', clickToLockHandler); 
-        }
-        controls.addEventListener('lock', onLockHandler);
-        controls.addEventListener('unlock', onUnlockHandler);
-    } else {
-        // On mobile, the blocker might still be "clicked" if not fully obscured
-        // ensure its click leads to the mobile-specific path in clickToLockHandler
-        if (blockerElement) {
-             blockerElement.addEventListener('click', clickToLockHandler);
-        }
+    if (blockerElement) { 
+        blockerElement.addEventListener('click', clickToLockHandler); 
     }
+    controls.addEventListener('lock', onLockHandler);
+    controls.addEventListener('unlock', onUnlockHandler);
       
     if (pausedMessageElement) pausedMessageElement.style.display = 'none';
 
-    // Initial UI state based on context (mobile/desktop, locked/paused)
-    if (isMobile) {
-        if (blockerElement) blockerElement.style.display = 'none'; // Hide blocker on mobile initially
-        if (instructionsElement) instructionsElement.style.display = 'none'; // Hide instructions on mobile
-    } else if (currentMount) {
+    // Initial UI state based on desktop context
+    if (currentMount) {
       if (!controls.isLocked ) {
         if (blockerElement) blockerElement.style.display = 'grid';
         if (instructionsElement) instructionsElement.style.display = '';
@@ -579,18 +543,19 @@ export default function ArenaDisplay() {
         let stillSupported = false;
         const playerFeetY = player.position.y - currentEyeOffset;
 
+        // Check if still on main ground
         if (Math.abs(playerFeetY - 0) < 0.01 && Math.abs(player.position.y - (playerLastSurfaceY.current + currentEyeOffset)) < 0.01) {
              stillSupported = true;
-        } else {
+        } else { // Check if still on a building top
           for (const building of buildingsRef.current) {
-            if (!building.geometry.parameters || building === ground) continue;
+            if (!building.geometry.parameters || building === ground) continue; // ground is plane, no height
             const geomParams = building.geometry.parameters as any;
             const buildingHeight = geomParams.height;
             const buildingBaseY = building.position.y - buildingHeight / 2;
             const buildingTopActualY = buildingBaseY + buildingHeight;
 
-            const halfWidth = geomParams.width ? geomParams.width / 2 : geomParams.radiusTop;
-            const halfDepth = geomParams.depth ? geomParams.depth / 2 : geomParams.radiusTop;
+            const halfWidth = geomParams.width ? geomParams.width / 2 : (geomParams.radiusTop || 0); // Handle Cylinder too
+            const halfDepth = geomParams.depth ? geomParams.depth / 2 : (geomParams.radiusTop || 0); // Handle Cylinder too
 
             if (
               player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
@@ -605,7 +570,7 @@ export default function ArenaDisplay() {
         }
         if (!stillSupported) {
           onGround.current = false;
-          jumpsMadeInAirRef.current = 0;
+          jumpsMadeInAirRef.current = 0; // Reset air jumps if slid off an edge
         }
       }
 
@@ -616,7 +581,7 @@ export default function ArenaDisplay() {
         player.position.y += verticalVelocity.current * delta;
         
         let landedOnObject = false;
-        if (verticalVelocity.current <= 0) {
+        if (verticalVelocity.current <= 0) { // Only check for landing if moving downwards
           for (const building of buildingsRef.current) {
             if (!building.geometry.parameters || building === ground) continue;
             const geomParams = building.geometry.parameters as any;
@@ -633,8 +598,8 @@ export default function ArenaDisplay() {
             if (
               player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
               player.position.z >= building.position.z - halfDepth && player.position.z <= building.position.z + halfDepth &&
-              playerPreviousFeetY >= buildingTopActualY - 0.01 && 
-              playerCurrentFeetY <= buildingTopActualY + 0.05
+              playerPreviousFeetY >= buildingTopActualY - 0.01 && // Was above or at the surface in the previous frame
+              playerCurrentFeetY <= buildingTopActualY + 0.05 // Is at or slightly below surface now
             ) {
               player.position.y = buildingTopActualY + currentEyeOffset;
               verticalVelocity.current = 0;
@@ -646,6 +611,7 @@ export default function ArenaDisplay() {
             }
           }
 
+          // Check for landing on main ground
           const targetPlayerYOnMainGround = currentEyeOffset;
           if (!landedOnObject && player.position.y <= targetPlayerYOnMainGround ) {
              if (previousPlayerY >= targetPlayerYOnMainGround && player.position.y <= targetPlayerYOnMainGround + 0.05) {
@@ -659,8 +625,8 @@ export default function ArenaDisplay() {
         }
       }
 
-      // Movement logic, only apply if not mobile or if pointer is locked (desktop)
-      if (controlsRef.current.isLocked === true || (isMobile /* && some_touch_input_active */)) {
+      // Movement logic, only apply if pointer is locked (desktop)
+      if (controlsRef.current.isLocked === true) {
         velocity.current.x -= velocity.current.x * 10.0 * delta;
         velocity.current.z -= velocity.current.z * 10.0 * delta;
 
@@ -678,58 +644,28 @@ export default function ArenaDisplay() {
         if (moveForward.current || moveBackward.current) velocity.current.z -= direction.current.z * currentMoveSpeed * 10.0 * delta;
         if (moveLeft.current || moveRight.current) velocity.current.x -= direction.current.x * currentMoveSpeed * 10.0 * delta;
         
-        // Apply movement if not mobile (uses PointerLock)
-        // For mobile, movement would be applied differently based on touch controls (not implemented here)
-        if (!isMobile && controlsRef.current.isLocked === true) {
-            const originalPlayerPosition = player.position.clone();
-            const playerEyeHeightForCollision = currentEyeOffset;
+        const originalPlayerPosition = player.position.clone();
+        const playerEyeHeightForCollision = currentEyeOffset;
 
-            const strafeAmount = -velocity.current.x * delta;
-            if (Math.abs(strafeAmount) > 0.0001) {
-                controlsRef.current.moveRight(strafeAmount);
-                if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
-                    player.position.x = originalPlayerPosition.x; 
-                    player.position.z = originalPlayerPosition.z; 
-                }
-            }
-
-            const positionAfterStrafe = player.position.clone();
-
-            const forwardAmount = -velocity.current.z * delta;
-            if (Math.abs(forwardAmount) > 0.0001) {
-                controlsRef.current.moveForward(forwardAmount);
-                if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
-                    player.position.x = positionAfterStrafe.x; 
-                    player.position.z = positionAfterStrafe.z; 
-                }
-            }
-        } else if (isMobile) {
-            // Conceptual: Apply movement based on mobile controls (velocity.x, velocity.z) directly to player.position
-            // This part needs actual touch input handling to update velocity.
-            // And then, similar collision checks would be needed.
-            // For now, this block is a placeholder for future mobile movement implementation.
-            const tempPlayerDeltaX = -velocity.current.x * delta; // Placeholder, needs to be driven by mobile controls
-            const tempPlayerDeltaZ = -velocity.current.z * delta; // Placeholder
-
-            const prevPosMobile = player.position.clone();
-            
-            // This is a simplified application of movement for mobile, assuming velocity is set by touch.
-            // Proper mobile movement would involve getting direction from virtual joystick/buttons.
-            const worldDirection = new THREE.Vector3();
-            player.getWorldDirection(worldDirection);
-            worldDirection.y = 0; // Keep movement horizontal
-            worldDirection.normalize();
-
-            const rightDirection = new THREE.Vector3().crossVectors(player.up, worldDirection).normalize();
-
-            player.position.addScaledVector(worldDirection, tempPlayerDeltaZ); // Forward/Backward
-            player.position.addScaledVector(rightDirection, tempPlayerDeltaX); // Strafe
-
-            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, currentEyeOffset)) {
-                 player.position.copy(prevPosMobile);
+        const strafeAmount = -velocity.current.x * delta;
+        if (Math.abs(strafeAmount) > 0.0001) {
+            controlsRef.current.moveRight(strafeAmount);
+            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
+                player.position.x = originalPlayerPosition.x; 
+                player.position.z = originalPlayerPosition.z; 
             }
         }
 
+        const positionAfterStrafe = player.position.clone();
+
+        const forwardAmount = -velocity.current.z * delta;
+        if (Math.abs(forwardAmount) > 0.0001) {
+            controlsRef.current.moveForward(forwardAmount);
+            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
+                player.position.x = positionAfterStrafe.x; 
+                player.position.z = positionAfterStrafe.z; 
+            }
+        }
 
         const halfGroundMinusRadius = GROUND_SIZE / 2 - PLAYER_COLLISION_RADIUS;
         player.position.x = Math.max(-halfGroundMinusRadius, Math.min(halfGroundMinusRadius, player.position.x));
@@ -842,7 +778,7 @@ export default function ArenaDisplay() {
       directionalLightRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMobile]); // Added isMobile as a dependency for main useEffect for setup/cleanup logic
+  }, [onKeyDown, onKeyUp, clickToLockHandler, onLockHandler, onUnlockHandler]); 
 
   useEffect(() => {
     if (sceneRef.current && ambientLightRef.current && directionalLightRef.current) {
@@ -858,5 +794,7 @@ export default function ArenaDisplay() {
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
+
+    
 
     
