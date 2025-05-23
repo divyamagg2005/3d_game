@@ -16,6 +16,7 @@ import {
     PLAYER_CROUCH_SPEED_MULTIPLIER,
     MAX_AIR_JUMPS
 } from '@/config/game-constants';
+import { useIsMobile } from '@/hooks/use-mobile'; // Import useIsMobile
 
 interface DayNightPhase {
   name: string;
@@ -117,6 +118,8 @@ export default function ArenaDisplay() {
   const buildingsRef = useRef<THREE.Mesh[]>([]);
   const playerLastSurfaceY = useRef(0); // Stores the Y of the surface player is on (feet level)
 
+  const isMobile = useIsMobile(); // Use the hook
+
 
   const [dayNightCycle, setDayNightCycle] = useState<DayNightCycleState>(() => {
     const initialPhase = dayNightCycleConfig.phases[0];
@@ -154,7 +157,7 @@ export default function ArenaDisplay() {
         moveRight.current = true;
         break;
       case 'Space':
-        if (!isPaused.current && controlsRef.current?.isLocked) {
+        if (!isPaused.current && (controlsRef.current?.isLocked || isMobile)) { // Allow jump on mobile even if not "locked"
           if (onGround.current) {
             verticalVelocity.current = PLAYER_JUMP_FORCE;
             onGround.current = false;
@@ -171,7 +174,7 @@ export default function ArenaDisplay() {
         break;
       case 'ControlLeft':
       case 'KeyC':
-         if (!isPaused.current && controlsRef.current?.isLocked) {
+         if (!isPaused.current && (controlsRef.current?.isLocked || isMobile)) {
             isCrouching.current = !isCrouching.current;
          }
         break;
@@ -190,7 +193,11 @@ export default function ArenaDisplay() {
           if (instructionsEl) instructionsEl.style.display = 'none';
         } else {
           if (pausedMessageEl) pausedMessageEl.style.display = 'none';
-          if (blockerEl && !controlsRef.current?.isLocked) {
+           // If unpausing, show instructions if not locked (desktop) or hide blocker if mobile
+          if (isMobile) {
+            if (blockerEl) blockerEl.style.display = 'none';
+            if (instructionsEl) instructionsEl.style.display = 'none';
+          } else if (blockerEl && !controlsRef.current?.isLocked) {
              if (instructionsEl) instructionsEl.style.display = '';
              blockerEl.style.display = 'grid';
           } else if (blockerEl && controlsRef.current?.isLocked) {
@@ -201,7 +208,7 @@ export default function ArenaDisplay() {
         break;
       }
     }
-  }, []);
+  }, [isMobile]);
 
   const onKeyUp = useCallback((event: KeyboardEvent) => {
     switch (event.code) {
@@ -229,12 +236,39 @@ export default function ArenaDisplay() {
   }, []);
 
   const clickToLockHandler = useCallback(() => {
-    if (!isPaused.current && controlsRef.current && !controlsRef.current.isLocked) {
-        controlsRef.current.lock();
+    const instructionsEl = document.getElementById('instructions');
+    const blockerEl = document.getElementById('blocker');
+    const pausedMessageEl = document.getElementById('paused-message');
+  
+    if (isMobile) {
+      // On mobile, clicking the "instructions" area (if visible) should just hide it
+      // and ensure the game isn't considered paused. Mobile controls take over.
+      if (instructionsEl) instructionsEl.style.display = 'none';
+      if (blockerEl) blockerEl.style.display = 'none';
+      if (pausedMessageEl) pausedMessageEl.style.display = 'none';
+      isPaused.current = false; // Ensure game is considered active
+      return;
     }
-  }, []);
+  
+    // Desktop Pointer Lock logic
+    if (!isPaused.current && controlsRef.current && !controlsRef.current.isLocked) {
+      if (typeof controlsRef.current.domElement.requestPointerLock === 'function') {
+        controlsRef.current.lock();
+      } else {
+        console.error('ArenaDisplay: requestPointerLock API is not a function on domElement. Pointer lock cannot be initiated.');
+        // Still hide UI elements as if lock was attempted but failed pre-API check, effectively "starting" game view.
+        if (instructionsEl) instructionsEl.style.display = 'none';
+        if (blockerEl) blockerEl.style.display = 'none';
+        if (pausedMessageEl) pausedMessageEl.style.display = 'none';
+        isPaused.current = false; 
+      }
+    }
+  }, [isMobile]);
 
   const onLockHandler = useCallback(() => {
+    // This handler is for desktop pointer lock
+    if (isMobile) return; 
+
     const instructionsEl = document.getElementById('instructions');
     const blockerEl = document.getElementById('blocker');
     const pausedMessageEl = document.getElementById('paused-message');
@@ -244,9 +278,12 @@ export default function ArenaDisplay() {
     if (pausedMessageEl) pausedMessageEl.style.display = 'none';
     
     isPaused.current = false; 
-  }, []);
+  }, [isMobile]);
 
   const onUnlockHandler = useCallback(() => {
+    // This handler is for desktop pointer lock
+    if (isMobile) return;
+
     const instructionsEl = document.getElementById('instructions');
     const blockerEl = document.getElementById('blocker');
     const pausedMessageEl = document.getElementById('paused-message');
@@ -260,7 +297,7 @@ export default function ArenaDisplay() {
       if (pausedMessageEl) pausedMessageEl.style.display = 'none';
       if (instructionsEl) instructionsEl.style.display = '';
     }
-  }, []);
+  }, [isMobile]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !mountRef.current) return;
@@ -284,8 +321,11 @@ export default function ArenaDisplay() {
     currentMount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
+    // Initialize PointerLockControls but be mindful of mobile context for .lock()
     const controls = new PointerLockControls(camera, renderer.domElement);
-    controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002; 
+    if (!isMobile) { // Only set pointerSpeed if not mobile, as it's irrelevant
+        controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002;
+    }
     scene.add(controls.getObject()); 
     controlsRef.current = controls;
     
@@ -293,14 +333,28 @@ export default function ArenaDisplay() {
     const blockerElement = document.getElementById('blocker');
     const pausedMessageElement = document.getElementById('paused-message');
 
-    if (blockerElement) { 
-      blockerElement.addEventListener('click', clickToLockHandler); 
+    // Event listeners for pointer lock should only be effective on desktop
+    if (!isMobile) {
+        if (blockerElement) { 
+            blockerElement.addEventListener('click', clickToLockHandler); 
+        }
+        controls.addEventListener('lock', onLockHandler);
+        controls.addEventListener('unlock', onUnlockHandler);
+    } else {
+        // On mobile, the blocker might still be "clicked" if not fully obscured
+        // ensure its click leads to the mobile-specific path in clickToLockHandler
+        if (blockerElement) {
+             blockerElement.addEventListener('click', clickToLockHandler);
+        }
     }
-    controls.addEventListener('lock', onLockHandler);
-    controls.addEventListener('unlock', onUnlockHandler);
       
     if (pausedMessageElement) pausedMessageElement.style.display = 'none';
-    if (currentMount) {
+
+    // Initial UI state based on context (mobile/desktop, locked/paused)
+    if (isMobile) {
+        if (blockerElement) blockerElement.style.display = 'none'; // Hide blocker on mobile initially
+        if (instructionsElement) instructionsElement.style.display = 'none'; // Hide instructions on mobile
+    } else if (currentMount) {
       if (!controls.isLocked ) {
         if (blockerElement) blockerElement.style.display = 'grid';
         if (instructionsElement) instructionsElement.style.display = '';
@@ -397,7 +451,6 @@ export default function ArenaDisplay() {
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
-    // buildingsRef.current.push(ground); // Don't add ground to buildingsRef for roof landing logic, treat it separately
 
     const wallHeight = GROUND_SIZE ; 
     const wallThickness = 10; 
@@ -422,9 +475,8 @@ export default function ArenaDisplay() {
     const buildingOffset = GROUND_SIZE / 4; 
 
     const addBuilding = (geometry: THREE.BufferGeometry, materials: THREE.Material | THREE.Material[], x: number, yBase: number, z: number) => {
-      const buildingHeight = (geometry.parameters as any).height; // Assuming BoxGeometry or CylinderGeometry
+      const buildingHeight = (geometry.parameters as any).height; 
       const building = new THREE.Mesh(geometry, materials);
-      // yBase is the Y position of the *base* of the building. Center is yBase + buildingHeight / 2
       building.position.set(x, yBase + buildingHeight / 2, z); 
       building.castShadow = true;
       building.receiveShadow = true;
@@ -432,7 +484,7 @@ export default function ArenaDisplay() {
       buildingsRef.current.push(building); 
     };
     
-    // Residential Area (base Y is 0)
+    // Residential Area
     addBuilding(new THREE.BoxGeometry(4, 3, 5), residentialMaterials, -buildingOffset, 0, -buildingOffset + 5);
     addBuilding(new THREE.BoxGeometry(5, 2.5, 4), residentialMaterials, -buildingOffset + 8, 0, -buildingOffset -2);
     addBuilding(new THREE.BoxGeometry(6, 8, 5), residentialMaterials, -buildingOffset - 5, 0, -buildingOffset - 8);
@@ -443,7 +495,7 @@ export default function ArenaDisplay() {
     addBuilding(new THREE.BoxGeometry(5, 4, 5), residentialMaterials, -buildingOffset - 18, 0, -buildingOffset - 18);
 
 
-    // Commercial Zone (base Y is 0)
+    // Commercial Zone
     addBuilding(new THREE.BoxGeometry(7, 5, 6), commercialMaterials, buildingOffset, 0, -buildingOffset);
     addBuilding(new THREE.BoxGeometry(5, 10, 5), commercialMaterials, buildingOffset + 10, 0, -buildingOffset + 8);
     addBuilding(new THREE.BoxGeometry(8, 6, 7), commercialMaterials, buildingOffset - 8, 0, -buildingOffset - 10);
@@ -453,17 +505,17 @@ export default function ArenaDisplay() {
     addBuilding(new THREE.BoxGeometry(5.5, 6, 5.5), commercialMaterials, buildingOffset + 22, 0, -buildingOffset + 22);
 
 
-    // Industrial Sector (base Y is 0)
+    // Industrial Sector
     addBuilding(new THREE.BoxGeometry(15, 6, 10), industrialMaterials, -buildingOffset + 5, 0, buildingOffset);
     
     const factoryGeom = new THREE.BoxGeometry(10, 8, 8);
     const factory = new THREE.Mesh(factoryGeom, industrialMaterials);
-    factory.position.set(-buildingOffset - 10, 8 / 2, buildingOffset + 12); // Y is center
+    factory.position.set(-buildingOffset - 10, 8 / 2, buildingOffset + 12);
     factory.castShadow = true; factory.receiveShadow = true; scene.add(factory); buildingsRef.current.push(factory);
     
     const factorySmokestackGeom = new THREE.CylinderGeometry(1.5, 1.5, 18, 16);
     const factorySmokestack = new THREE.Mesh(factorySmokestackGeom, smokestackMaterial); 
-    factorySmokestack.position.set(-buildingOffset - 13.5, 18 / 2, buildingOffset + 14); // Y is center of cylinder (base at Y=0)
+    factorySmokestack.position.set(-buildingOffset - 13.5, 18 / 2, buildingOffset + 14);
     factorySmokestack.castShadow = true; factorySmokestack.receiveShadow = true; scene.add(factorySmokestack); buildingsRef.current.push(factorySmokestack);
     
     addBuilding(new THREE.BoxGeometry(12, 7, 9), industrialMaterials, -buildingOffset - 20, 0, buildingOffset - 5);
@@ -472,7 +524,7 @@ export default function ArenaDisplay() {
     addBuilding(new THREE.BoxGeometry(14, 6.5, 8.5), industrialMaterials, -buildingOffset + 15, 0, buildingOffset - 10);
 
 
-    // Downtown Area (base Y is 0)
+    // Downtown Area
     addBuilding(new THREE.BoxGeometry(6, 15, 6), downtownMaterials, buildingOffset, 0, buildingOffset);
     addBuilding(new THREE.BoxGeometry(7, 25, 7), downtownMaterials, buildingOffset + 12, 0, buildingOffset + 12); 
     addBuilding(new THREE.BoxGeometry(5.5, 20, 5.5), downtownMaterials, buildingOffset - 7, 0, buildingOffset + 8);
@@ -481,7 +533,6 @@ export default function ArenaDisplay() {
     addBuilding(new THREE.BoxGeometry(8, 30, 8), downtownMaterials, buildingOffset + 25, 0, buildingOffset + 25); 
     addBuilding(new THREE.BoxGeometry(4.5, 16, 4.5), downtownMaterials, buildingOffset - 20, 0, buildingOffset + 20);
 
-    // Smaller obstacles for hide and seek (base Y is 0)
     const obstacleMaterials = [residentialMaterials, commercialMaterials, industrialMaterials, downtownMaterials];
     for (let i = 0; i < 50; i++) {
         const sizeX = Math.random() * 2 + 1; 
@@ -524,31 +575,28 @@ export default function ArenaDisplay() {
       const currentEyeOffset = isCrouching.current ? PLAYER_CROUCH_HEIGHT : PLAYER_NORMAL_HEIGHT;
 
 
-      // "Still on ground" check
       if (onGround.current) {
         let stillSupported = false;
         const playerFeetY = player.position.y - currentEyeOffset;
 
-        // Check if on main ground
         if (Math.abs(playerFeetY - 0) < 0.01 && Math.abs(player.position.y - (playerLastSurfaceY.current + currentEyeOffset)) < 0.01) {
              stillSupported = true;
         } else {
-        // Check if on a building roof
           for (const building of buildingsRef.current) {
-            if (!building.geometry.parameters || building === ground) continue; // Skip non-box/cylinder or the ground itself
-            const geomParams = building.geometry.parameters as any; // { width, height, depth } or { radiusTop, height }
+            if (!building.geometry.parameters || building === ground) continue;
+            const geomParams = building.geometry.parameters as any;
             const buildingHeight = geomParams.height;
             const buildingBaseY = building.position.y - buildingHeight / 2;
             const buildingTopActualY = buildingBaseY + buildingHeight;
 
-            const halfWidth = geomParams.width ? geomParams.width / 2 : geomParams.radiusTop; // Approx for cylinder
-            const halfDepth = geomParams.depth ? geomParams.depth / 2 : geomParams.radiusTop; // Approx for cylinder
+            const halfWidth = geomParams.width ? geomParams.width / 2 : geomParams.radiusTop;
+            const halfDepth = geomParams.depth ? geomParams.depth / 2 : geomParams.radiusTop;
 
             if (
               player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
               player.position.z >= building.position.z - halfDepth && player.position.z <= building.position.z + halfDepth &&
-              Math.abs(playerFeetY - buildingTopActualY) < 0.01 && // Are feet at this building's top?
-              Math.abs(player.position.y - (playerLastSurfaceY.current + currentEyeOffset)) < 0.01 // Is eye level consistent with last surface?
+              Math.abs(playerFeetY - buildingTopActualY) < 0.01 &&
+              Math.abs(player.position.y - (playerLastSurfaceY.current + currentEyeOffset)) < 0.01
             ) {
               stillSupported = true;
               break;
@@ -556,22 +604,19 @@ export default function ArenaDisplay() {
           }
         }
         if (!stillSupported) {
-          onGround.current = false; // No longer supported, start falling
-          jumpsMadeInAirRef.current = 0; // Reset air jumps if slid off an edge
+          onGround.current = false;
+          jumpsMadeInAirRef.current = 0;
         }
       }
 
 
-      // Apply gravity if not on ground
       if (!onGround.current) {
         const previousPlayerY = player.position.y;
         verticalVelocity.current -= GRAVITY * delta;
         player.position.y += verticalVelocity.current * delta;
         
-        // Landing Logic
         let landedOnObject = false;
-        if (verticalVelocity.current <= 0) { // Only check for landing if moving downwards
-          // Check landing on buildings
+        if (verticalVelocity.current <= 0) {
           for (const building of buildingsRef.current) {
             if (!building.geometry.parameters || building === ground) continue;
             const geomParams = building.geometry.parameters as any;
@@ -588,8 +633,8 @@ export default function ArenaDisplay() {
             if (
               player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
               player.position.z >= building.position.z - halfDepth && player.position.z <= building.position.z + halfDepth &&
-              playerPreviousFeetY >= buildingTopActualY - 0.01 && // Was above or at top
-              playerCurrentFeetY <= buildingTopActualY + 0.05 // Is now at or slightly below top (allow for small penetration)
+              playerPreviousFeetY >= buildingTopActualY - 0.01 && 
+              playerCurrentFeetY <= buildingTopActualY + 0.05
             ) {
               player.position.y = buildingTopActualY + currentEyeOffset;
               verticalVelocity.current = 0;
@@ -601,8 +646,7 @@ export default function ArenaDisplay() {
             }
           }
 
-          // Check landing on main ground (Y=0) if not landed on an object
-          const targetPlayerYOnMainGround = currentEyeOffset; // Eye level when feet at Y=0
+          const targetPlayerYOnMainGround = currentEyeOffset;
           if (!landedOnObject && player.position.y <= targetPlayerYOnMainGround ) {
              if (previousPlayerY >= targetPlayerYOnMainGround && player.position.y <= targetPlayerYOnMainGround + 0.05) {
                 player.position.y = targetPlayerYOnMainGround;
@@ -615,8 +659,8 @@ export default function ArenaDisplay() {
         }
       }
 
-
-      if (controlsRef.current.isLocked === true) {
+      // Movement logic, only apply if not mobile or if pointer is locked (desktop)
+      if (controlsRef.current.isLocked === true || (isMobile /* && some_touch_input_active */)) {
         velocity.current.x -= velocity.current.x * 10.0 * delta;
         velocity.current.z -= velocity.current.z * 10.0 * delta;
 
@@ -634,31 +678,58 @@ export default function ArenaDisplay() {
         if (moveForward.current || moveBackward.current) velocity.current.z -= direction.current.z * currentMoveSpeed * 10.0 * delta;
         if (moveLeft.current || moveRight.current) velocity.current.x -= direction.current.x * currentMoveSpeed * 10.0 * delta;
         
-        const originalPlayerPosition = player.position.clone();
-        const playerEyeHeightForCollision = currentEyeOffset;
+        // Apply movement if not mobile (uses PointerLock)
+        // For mobile, movement would be applied differently based on touch controls (not implemented here)
+        if (!isMobile && controlsRef.current.isLocked === true) {
+            const originalPlayerPosition = player.position.clone();
+            const playerEyeHeightForCollision = currentEyeOffset;
 
+            const strafeAmount = -velocity.current.x * delta;
+            if (Math.abs(strafeAmount) > 0.0001) {
+                controlsRef.current.moveRight(strafeAmount);
+                if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
+                    player.position.x = originalPlayerPosition.x; 
+                    player.position.z = originalPlayerPosition.z; 
+                }
+            }
 
-        const strafeAmount = -velocity.current.x * delta;
-        if (Math.abs(strafeAmount) > 0.0001) {
-            controlsRef.current.moveRight(strafeAmount);
-            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
-                player.position.x = originalPlayerPosition.x; 
-                // player.position.y = originalPlayerPosition.y; // Y is managed by gravity/jump
-                player.position.z = originalPlayerPosition.z; 
+            const positionAfterStrafe = player.position.clone();
+
+            const forwardAmount = -velocity.current.z * delta;
+            if (Math.abs(forwardAmount) > 0.0001) {
+                controlsRef.current.moveForward(forwardAmount);
+                if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
+                    player.position.x = positionAfterStrafe.x; 
+                    player.position.z = positionAfterStrafe.z; 
+                }
+            }
+        } else if (isMobile) {
+            // Conceptual: Apply movement based on mobile controls (velocity.x, velocity.z) directly to player.position
+            // This part needs actual touch input handling to update velocity.
+            // And then, similar collision checks would be needed.
+            // For now, this block is a placeholder for future mobile movement implementation.
+            const tempPlayerDeltaX = -velocity.current.x * delta; // Placeholder, needs to be driven by mobile controls
+            const tempPlayerDeltaZ = -velocity.current.z * delta; // Placeholder
+
+            const prevPosMobile = player.position.clone();
+            
+            // This is a simplified application of movement for mobile, assuming velocity is set by touch.
+            // Proper mobile movement would involve getting direction from virtual joystick/buttons.
+            const worldDirection = new THREE.Vector3();
+            player.getWorldDirection(worldDirection);
+            worldDirection.y = 0; // Keep movement horizontal
+            worldDirection.normalize();
+
+            const rightDirection = new THREE.Vector3().crossVectors(player.up, worldDirection).normalize();
+
+            player.position.addScaledVector(worldDirection, tempPlayerDeltaZ); // Forward/Backward
+            player.position.addScaledVector(rightDirection, tempPlayerDeltaX); // Strafe
+
+            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, currentEyeOffset)) {
+                 player.position.copy(prevPosMobile);
             }
         }
 
-        const positionAfterStrafe = player.position.clone();
-
-        const forwardAmount = -velocity.current.z * delta;
-        if (Math.abs(forwardAmount) > 0.0001) {
-            controlsRef.current.moveForward(forwardAmount);
-            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
-                player.position.x = positionAfterStrafe.x; 
-                // player.position.y = positionAfterStrafe.y; // Y is managed by gravity/jump
-                player.position.z = positionAfterStrafe.z; 
-            }
-        }
 
         const halfGroundMinusRadius = GROUND_SIZE / 2 - PLAYER_COLLISION_RADIUS;
         player.position.x = Math.max(-halfGroundMinusRadius, Math.min(halfGroundMinusRadius, player.position.x));
@@ -729,7 +800,7 @@ export default function ArenaDisplay() {
         controlsRef.current.removeEventListener('lock', onLockHandler);
         controlsRef.current.removeEventListener('unlock', onUnlockHandler);
         if (controlsRef.current.isLocked) { 
-          controlsRef.current.unlock();
+          controlsRef.current.unlock(); // Ensure unlock before dispose
         }
         controlsRef.current.dispose();
       }
@@ -771,7 +842,7 @@ export default function ArenaDisplay() {
       directionalLightRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);  
+  }, [isMobile]); // Added isMobile as a dependency for main useEffect for setup/cleanup logic
 
   useEffect(() => {
     if (sceneRef.current && ambientLightRef.current && directionalLightRef.current) {
@@ -787,6 +858,5 @@ export default function ArenaDisplay() {
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
-
 
     
