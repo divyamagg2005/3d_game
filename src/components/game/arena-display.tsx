@@ -15,8 +15,8 @@ import {
     PLAYER_CROUCH_HEIGHT,
     PLAYER_CROUCH_SPEED_MULTIPLIER,
     MAX_AIR_JUMPS,
-    // PLAYER_PUNCH_DAMAGE, // Not used in this component directly yet
-    // PLAYER_KICK_DAMAGE,  // Not used in this component directly yet
+    PLAYER_PUNCH_DAMAGE, 
+    PLAYER_KICK_DAMAGE,
 } from '@/config/game-constants';
 
 interface DayNightPhase {
@@ -109,7 +109,6 @@ export default function ArenaDisplay() {
   const isCrouching = useRef(false);
   const jumpsMadeInAirRef = useRef(0);
   const isTorchOnRef = useRef(false);
-  // Refs for attack states (currently just for logging)
   const isPunchingRef = useRef(false);
   const isKickingRef = useRef(false);
 
@@ -123,12 +122,12 @@ export default function ArenaDisplay() {
   const spotLightRef = useRef<THREE.SpotLight | null>(null);
   const spotLightTargetRef = useRef<THREE.Object3D | null>(null);
   const buildingsRef = useRef<THREE.Mesh[]>([]);
-  const playerLastSurfaceY = useRef(0); // Stores the Y of the surface player is on (feet level)
+  const playerLastSurfaceY = useRef(0); 
 
 
   const [dayNightCycle, setDayNightCycle] = useState<DayNightCycleState>(() => {
     const initialPhase = dayNightCycleConfig.phases[0];
-    playerLastSurfaceY.current = 0; // Initialize on main ground
+    playerLastSurfaceY.current = 0; 
     return {
       currentTime: 0,
       currentPhaseDetails: {
@@ -201,13 +200,13 @@ export default function ArenaDisplay() {
           if (blockerEl) blockerEl.style.display = 'grid';
           if (pausedMessageEl) pausedMessageEl.style.display = 'block';
           if (instructionsEl) instructionsEl.style.display = 'none';
-        } else { // Unpausing
+        } else { 
           if (pausedMessageEl) pausedMessageEl.style.display = 'none';
           if (blockerEl) {
             if (!controlsRef.current?.isLocked) {
               blockerEl.style.display = 'grid';
               if (instructionsEl) instructionsEl.style.display = '';
-            } else { // Game is active (pointer is locked)
+            } else { 
               blockerEl.style.display = 'none';
               if (instructionsEl) instructionsEl.style.display = 'none';
             }
@@ -249,19 +248,22 @@ export default function ArenaDisplay() {
         case 0: // Left mouse button
           isPunchingRef.current = true;
           console.log("Player Action: Punch (Conceptual)");
-          // In a full implementation, you'd trigger an animation, raycast for hit, etc.
-          // For now, just a temporary state for potential future use or logging.
-          setTimeout(() => isPunchingRef.current = false, 100); // Reset after a short time
+          if (navigator.vibrate) {
+            navigator.vibrate(30); // Short vibration for punch
+          }
+          setTimeout(() => isPunchingRef.current = false, 100); 
           break;
         case 2: // Right mouse button
           isKickingRef.current = true;
           console.log("Player Action: Kick (Conceptual)");
-          // Similar to punch, actual logic would be more complex.
-          setTimeout(() => isKickingRef.current = false, 100); // Reset
+           if (navigator.vibrate) {
+            navigator.vibrate(50); // Slightly longer vibration for kick
+          }
+          setTimeout(() => isKickingRef.current = false, 100); 
           break;
       }
     }
-  }, []); // isPaused is a ref, controlsRef.current.isLocked is checked inside
+  }, []); 
 
   const clickToLockHandler = useCallback(() => {
     const instructionsEl = document.getElementById('instructions');
@@ -549,7 +551,7 @@ export default function ArenaDisplay() {
 
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
-    document.addEventListener('mousedown', onMouseDown); // Listener for punch/kick
+    document.addEventListener('mousedown', onMouseDown); 
 
     const handleResize = () => {
       if (cameraRef.current && rendererRef.current && mountRef.current) {
@@ -570,7 +572,7 @@ export default function ArenaDisplay() {
         if (rendererRef.current && sceneRef.current && cameraRef.current) {
             rendererRef.current.render(sceneRef.current, cameraRef.current);
         }
-        prevTime.current = time - delta * 1000; // Adjust prevTime correctly when paused
+        prevTime.current = time - delta * 1000; 
         return;
       }
 
@@ -585,9 +587,9 @@ export default function ArenaDisplay() {
         let stillSupported = false;
         const playerFeetY = player.position.y - currentEyeOffset;
 
-        if (Math.abs(playerFeetY - 0) < 0.01) { // Check main ground
+        if (Math.abs(playerFeetY - 0) < 0.01) { 
              stillSupported = true;
-             playerLastSurfaceY.current = 0; // Explicitly set to main ground
+             playerLastSurfaceY.current = 0; 
         } else { 
           for (const building of buildingsRef.current) {
             if (!building.geometry.parameters || building === ground) continue;
@@ -605,7 +607,7 @@ export default function ArenaDisplay() {
               Math.abs(playerFeetY - buildingTopActualY) < 0.01
             ) {
               stillSupported = true;
-              playerLastSurfaceY.current = buildingTopActualY; // Update surface Y
+              playerLastSurfaceY.current = buildingTopActualY; 
               break;
             }
           }
@@ -766,7 +768,7 @@ export default function ArenaDisplay() {
       window.removeEventListener('resize', handleResize);
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keyup', onKeyUp);
-      document.removeEventListener('mousedown', onMouseDown); // Cleanup mouse down listener
+      document.removeEventListener('mousedown', onMouseDown); 
 
       const currentBlocker = document.getElementById('blocker');
       if (currentBlocker) {
@@ -827,7 +829,7 @@ export default function ArenaDisplay() {
       spotLightTargetRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onKeyDown, onKeyUp, onMouseDown, clickToLockHandler, onLockHandler, onUnlockHandler]); // Added onMouseDown to dependencies
+  }, []); 
 
   useEffect(() => {
     if (sceneRef.current && ambientLightRef.current && directionalLightRef.current) {
@@ -847,3 +849,4 @@ export default function ArenaDisplay() {
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
+
