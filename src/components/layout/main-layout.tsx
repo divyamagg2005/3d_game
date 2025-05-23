@@ -4,18 +4,15 @@
 import type { ReactNode } from 'react';
 import { GameLogo } from '@/components/icons/game-logo';
 import Link from 'next/link';
-// Removed useDistractionFree
+import AdsterraAdSlot from '@/components/ads/adsterra-ad-slot';
 
 type MainLayoutProps = {
   children: ReactNode;
 };
 
 export default function MainLayout({ children }: MainLayoutProps) {
-  // Removed isDistractionFree
-
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
-      {/* Header is always shown */}
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 max-w-screen-2xl items-center">
           <Link href="/" className="mr-6 flex items-center space-x-2">
@@ -28,32 +25,31 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </div>
       </header>
 
-      {/* Main content area always shows ads */}
       <main className="relative flex flex-row flex-grow">
-        {/* Left Ad Space is always shown on md+ screens */}
         <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-r border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
-          <div className="border-2 border-dashed border-muted-foreground/30 p-10 rounded-lg text-center w-full h-full flex flex-col justify-center items-center">
-            <p className="text-lg font-semibold">Ad Space</p>
-            <p className="text-sm">Future advertisement</p>
-          </div>
+          <AdsterraAdSlot
+            adKey="b489cb229500818212b8f74504664a80"
+            configWidth={160}
+            configHeight={600}
+            containerIdSuffix="left-sidebar"
+          />
         </aside>
 
-        {/* Game Content Area - reverts to flex-grow */}
         <div
           className="flex flex-col bg-background flex-grow overflow-hidden"
         >
           {children}
         </div>
 
-        {/* Right Ad Space is always shown on md+ screens */}
         <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-l border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
-          <div className="border-2 border-dashed border-muted-foreground/30 p-10 rounded-lg text-center w-full h-full flex flex-col justify-center items-center">
-            <p className="text-lg font-semibold">Ad Space</p>
-            <p className="text-sm">Future advertisement</p>
-          </div>
+          <AdsterraAdSlot
+            adKey="b489cb229500818212b8f74504664a80" // Using the same adKey. If Adsterra needs different keys for different slots, update this.
+            configWidth={160}
+            configHeight={600}
+            containerIdSuffix="right-sidebar"
+          />
         </aside>
       </main>
-      {/* Footer is always shown */}
       <footer className="py-6 md:px-8 md:py-0 bg-background border-t border-border/40">
         <div className="container flex flex-col items-center justify-center gap-4 md:h-16 md:flex-row">
           <p className="text-balance text-center text-sm leading-loose text-muted-foreground">
