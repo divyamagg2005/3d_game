@@ -36,7 +36,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
         <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-r border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
           {isClient && ( 
             <AdsterraAdSlot
-              adKey="b489cb229500818212b8f74504664a80" // Use your Adsterra key for the left sidebar
+              adKey="b489cb229500818212b8f74504664a80" 
               configWidth={160}
               configHeight={600}
               containerIdSuffix="left-sidebar"
@@ -53,9 +53,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
         <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-l border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
            {isClient && (
             <AdsterraAdSlot
-              adKey="b489cb229500818212b8f74504664a80" // IMPORTANT: Replace with a NEW, UNIQUE key from Adsterra for the right sidebar
+              adKey="b489cb229500818212b8f74504664a80" // IMPORTANT: Replace with a NEW, UNIQUE key from Adsterra for this 160x300 unit
               configWidth={160}
-              configHeight={600}
+              configHeight={300} // Changed height for the right sidebar ad
               containerIdSuffix="right-sidebar"
             />
           )}
