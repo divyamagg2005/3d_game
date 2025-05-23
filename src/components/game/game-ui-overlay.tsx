@@ -2,10 +2,10 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Shield, Expand, Minimize } from 'lucide-react'; // Added Expand and Minimize
+import { Shield, Expand, Minimize } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button'; // Added Button
-
+import { Button } from '@/components/ui/button';
+import MobileControlsOverlay from './mobile-controls-overlay'; // Import the new component
 
 export default function GameUIOverlay() {
   const [isClient, setIsClient] = useState(false);
@@ -13,7 +13,7 @@ export default function GameUIOverlay() {
 
 
   useEffect(() => {
-    setIsClient(true); 
+    setIsClient(true);
     
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -43,13 +43,13 @@ export default function GameUIOverlay() {
     <div className="absolute inset-0 pointer-events-none p-4 md:p-6 flex flex-col text-foreground">
       {isClient && (
         <>
-         <div className="self-end pointer-events-auto">
+         <div className="self-end pointer-events-auto z-30"> {/* Ensure fullscreen button is above mobile controls overlay */}
             <Button variant="ghost" size="icon" onClick={toggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}>
               {isFullscreen ? <Minimize className="h-6 w-6" /> : <Expand className="h-6 w-6" />}
             </Button>
           </div>
 
-          <div className="mt-auto self-start">
+          <div className="mt-auto self-start pointer-events-auto z-30"> {/* Ensure shield is above mobile controls overlay */}
               <Card className="bg-card/80 backdrop-blur-sm border-border shadow-md">
               <CardContent className="p-2 md:p-3">
                   <Shield className="h-8 w-8 md:h-10 md:w-10 text-gray-400" />
@@ -59,20 +59,22 @@ export default function GameUIOverlay() {
         </>
       )}
 
+      <MobileControlsOverlay /> {/* Added mobile controls overlay */}
+
        <div
             id="blocker"
             className="absolute inset-0 bg-black/50 grid place-items-center text-white text-center pointer-events-auto z-10"
-            // style={{ display: 'grid' }} // ArenaDisplay will control this
+            // ArenaDisplay will control display style
         >
         <div
             id="instructions"
             className="p-8 rounded-lg bg-background/90 shadow-xl cursor-pointer"
-            // style={{ display: 'block' }} // ArenaDisplay will control this
+            // ArenaDisplay will control display style
         >
           <p className="text-2xl font-bold mb-4">Click to Play</p>
           <p className="text-lg">Use W, A, S, D to move.</p>
           <p className="text-lg">Move mouse to look.</p>
-          <p className="text-lg">Press SPACE to Jump.</p>
+          <p className="text-lg">Press SPACE to Jump (up to 4 times).</p>
           <p className="text-lg">Hold SHIFT to Run.</p>
           <p className="text-lg">Press CTRL or C to Crouch.</p>
           <p className="text-lg">Press ESC to release mouse.</p>
@@ -81,7 +83,7 @@ export default function GameUIOverlay() {
         <div
             id="paused-message"
             className="p-8 rounded-lg bg-background/90 shadow-xl"
-            style={{display: 'none'}}
+            style={{display: 'none'}} // ArenaDisplay will control display style
         >
           <p className="text-2xl font-bold mb-4">Game Paused</p>
           <p className="text-lg">Press P to Resume</p>
