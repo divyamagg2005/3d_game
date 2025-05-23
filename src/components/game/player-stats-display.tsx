@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Heart, Timer, CheckSquare, Shield, MapPin } from 'lucide-react';
+import { Heart, Timer, CheckSquare, Shield, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useState, useEffect } from 'react';
@@ -15,6 +15,7 @@ export default function PlayerStatsDisplay() {
   const [currentHealth, setCurrentHealth] = useState(MAX_HEALTH);
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
   const [checkpointsFound, setCheckpointsFound] = useState(0);
+  const [villainNearby, setVillainNearby] = useState(false); // Placeholder state
 
   // Placeholder effect to simulate timer countdown - replace with actual game logic
   useEffect(() => {
@@ -24,21 +25,13 @@ export default function PlayerStatsDisplay() {
     return () => clearInterval(timerInterval);
   }, []);
 
-  // Placeholder effect to simulate health change - replace with actual game logic
-  // useEffect(() => {
-  //   const healthInterval = setInterval(() => {
-  //     setCurrentHealth((prevHealth) => (prevHealth > 10 ? prevHealth - 5 : 0));
-  //   }, 5000);
-  //   return () => clearInterval(healthInterval);
-  // }, []);
-
-  // Placeholder effect to simulate checkpoint collection - replace with actual game logic
-  // useEffect(() => {
-  //   const checkpointInterval = setInterval(() => {
-  //     setCheckpointsFound((prev) => (prev < TOTAL_CHECKPOINTS ? prev + 1 : TOTAL_CHECKPOINTS));
-  //   }, 15000);
-  //   return () => clearInterval(checkpointInterval);
-  // }, []);
+  // Placeholder to toggle villain nearby status for visual testing
+  useEffect(() => {
+    const villainToggleInterval = setInterval(() => {
+      setVillainNearby((prev) => !prev);
+    }, 7000); // Toggle every 7 seconds
+    return () => clearInterval(villainToggleInterval);
+  }, []);
 
 
   const healthPercentage = (currentHealth / MAX_HEALTH) * 100;
@@ -88,29 +81,22 @@ export default function PlayerStatsDisplay() {
         </CardContent>
       </Card>
 
-      {/* Placeholder for Minimap */}
+      {/* Nearby Villain Alert */}
       <Card className="bg-card/80 backdrop-blur-sm border-border shadow-lg">
         <CardHeader className="p-3">
           <CardTitle className="text-lg flex items-center text-primary-foreground">
-            Minimap
+             <AlertTriangle className={`h-5 w-5 mr-2 ${villainNearby ? 'text-red-500 animate-pulse' : 'text-gray-500'}`} />
+            Threat Status
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-3 pt-0 flex items-center justify-center aspect-square">
-          {/* This is a visual placeholder for the minimap */}
-          <div className="w-full h-full bg-muted/50 rounded-md flex items-center justify-center relative overflow-hidden border border-border">
-            {/* Player Icon Placeholder */}
-            <MapPin className="h-6 w-6 text-accent z-10" />
-            {/* Conceptual map elements (static placeholders) */}
-            <div className="absolute top-1/4 left-1/4 w-3 h-3 bg-primary/30 rounded-sm opacity-75"></div>
-            <div className="absolute bottom-1/3 right-1/4 w-2 h-4 bg-primary/30 opacity-75 transform rotate-45"></div>
-            <div className="absolute top-1/2 right-1/3 w-4 h-2 bg-secondary/30 opacity-75"></div>
-            <div className="absolute top-1/3 left-1/2 w-2 h-5 bg-primary/30 opacity-75 transform -rotate-30"></div>
-            <p className="absolute bottom-2 text-xs text-muted-foreground">[Limited Top View Area]</p>
-          </div>
+        <CardContent className="p-3 pt-0 text-center">
+          {villainNearby ? (
+            <p className="text-lg font-semibold text-red-400">Villain Nearby!</p>
+          ) : (
+            <p className="text-md text-muted-foreground">No threats detected.</p>
+          )}
         </CardContent>
       </Card>
     </div>
   );
 }
-
-    
