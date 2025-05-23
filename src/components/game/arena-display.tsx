@@ -348,14 +348,14 @@ export default function ArenaDisplay() {
 
     if (currentMount) {
       if (!controls.isLocked ) {
-        if (blockerElement) blockerEl.style.display = 'grid';
+        if (blockerElement) blockerElement.style.display = 'grid';
         if (instructionsElement) instructionsElement.style.display = '';
         if (isPaused.current) {
              if (pausedMessageElement) pausedMessageElement.style.display = 'block';
              if (instructionsElement) instructionsElement.style.display = 'none';
         }
       } else {
-        if (blockerElement) blockerEl.style.display = 'none';
+        if (blockerElement) blockerElement.style.display = 'none';
         if (instructionsElement) instructionsElement.style.display = 'none';
         if (pausedMessageElement) pausedMessageElement.style.display = 'none';
         isPaused.current = false;
@@ -656,7 +656,7 @@ export default function ArenaDisplay() {
           }
           
           // Target Y on main ground using physics offset for landing calculation
-          const targetPlayerYOnMainGroundWithPhysics = physicsEyeOffset; 
+          // const targetPlayerYOnMainGroundWithPhysics = physicsEyeOffset; 
           if (!landedOnObject && player.position.y <= (playerLastSurfaceY.current + visualEyeOffset) ) { // Check against visual height for ground landing
              const currentFeetY = player.position.y - visualEyeOffset; // Feet based on visual offset
              const previousFeetY = previousPlayerY - visualEyeOffset;
