@@ -14,7 +14,9 @@ import {
     PLAYER_NORMAL_HEIGHT,
     PLAYER_CROUCH_HEIGHT,
     PLAYER_CROUCH_SPEED_MULTIPLIER,
-    MAX_AIR_JUMPS
+    MAX_AIR_JUMPS,
+    // PLAYER_PUNCH_DAMAGE, // Not used in this component directly yet
+    // PLAYER_KICK_DAMAGE,  // Not used in this component directly yet
 } from '@/config/game-constants';
 
 interface DayNightPhase {
@@ -107,6 +109,9 @@ export default function ArenaDisplay() {
   const isCrouching = useRef(false);
   const jumpsMadeInAirRef = useRef(0);
   const isTorchOnRef = useRef(false);
+  // Refs for attack states (currently just for logging)
+  const isPunchingRef = useRef(false);
+  const isKickingRef = useRef(false);
 
 
   const direction = useRef(new THREE.Vector3());
@@ -136,7 +141,6 @@ export default function ArenaDisplay() {
       },
     };
   });
-
 
   const onKeyDown = useCallback((event: KeyboardEvent) => {
     switch (event.code) {
@@ -239,21 +243,39 @@ export default function ArenaDisplay() {
     }
   }, []);
 
+  const onMouseDown = useCallback((event: MouseEvent) => {
+    if (controlsRef.current?.isLocked && !isPaused.current) {
+      switch (event.button) {
+        case 0: // Left mouse button
+          isPunchingRef.current = true;
+          console.log("Player Action: Punch (Conceptual)");
+          // In a full implementation, you'd trigger an animation, raycast for hit, etc.
+          // For now, just a temporary state for potential future use or logging.
+          setTimeout(() => isPunchingRef.current = false, 100); // Reset after a short time
+          break;
+        case 2: // Right mouse button
+          isKickingRef.current = true;
+          console.log("Player Action: Kick (Conceptual)");
+          // Similar to punch, actual logic would be more complex.
+          setTimeout(() => isKickingRef.current = false, 100); // Reset
+          break;
+      }
+    }
+  }, []); // isPaused is a ref, controlsRef.current.isLocked is checked inside
+
   const clickToLockHandler = useCallback(() => {
     const instructionsEl = document.getElementById('instructions');
     const blockerEl = document.getElementById('blocker');
     const pausedMessageEl = document.getElementById('paused-message');
 
-    // Desktop Pointer Lock logic
     if (!isPaused.current && controlsRef.current && !controlsRef.current.isLocked) {
+      if (rendererRef.current && rendererRef.current.domElement) {
+          rendererRef.current.domElement.focus(); 
+      }
       if (typeof controlsRef.current.domElement.requestPointerLock === 'function') {
-        if (rendererRef.current && rendererRef.current.domElement) {
-            rendererRef.current.domElement.focus(); // Explicitly focus the canvas
-        }
         controlsRef.current.lock();
       } else {
         console.error('ArenaDisplay: requestPointerLock API is not a function on domElement. Pointer lock cannot be initiated.');
-        // Still hide UI elements as if lock was attempted but failed pre-API check, effectively "starting" game view.
         if (instructionsEl) instructionsEl.style.display = 'none';
         if (blockerEl) blockerEl.style.display = 'none';
         if (pausedMessageEl) pausedMessageEl.style.display = 'none';
@@ -301,7 +323,7 @@ export default function ArenaDisplay() {
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
     const initialPlayerEyeHeight = PLAYER_NORMAL_HEIGHT;
     camera.position.set(0, initialPlayerEyeHeight, 5);
-    playerLastSurfaceY.current = 0; // Player starts on ground at Y=0
+    playerLastSurfaceY.current = 0; 
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -309,12 +331,12 @@ export default function ArenaDisplay() {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.domElement.tabIndex = -1; // Make the canvas element itself focusable
+    renderer.domElement.tabIndex = -1; 
     currentMount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
     const controls = new PointerLockControls(camera, renderer.domElement);
-    controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002; // Adjust if needed
+    controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002; 
     scene.add(controls.getObject());
     controlsRef.current = controls;
 
@@ -330,7 +352,6 @@ export default function ArenaDisplay() {
 
     if (pausedMessageElement) pausedMessageElement.style.display = 'none';
 
-    // Initial UI state based on desktop context
     if (currentMount) {
       if (!controls.isLocked ) {
         if (blockerElement) blockerElement.style.display = 'grid';
@@ -363,21 +384,14 @@ export default function ArenaDisplay() {
     directionalLightRef.current.shadow.camera.bottom = -GROUND_SIZE;
     scene.add(directionalLightRef.current);
 
-    // Torch Spotlight
     spotLightRef.current = new THREE.SpotLight(0xffffff, 1.5, 70, Math.PI / 7, 0.3, 1.5);
-    spotLightRef.current.visible = false; // Off by default
-    spotLightRef.current.position.set(0, 0, 0); // Position relative to camera
-    // spotLightRef.current.castShadow = true; // Optional: can be performance intensive
-    // spotLightRef.current.shadow.mapSize.width = 512;
-    // spotLightRef.current.shadow.mapSize.height = 512;
-    // spotLightRef.current.shadow.camera.near = 0.5;
-    // spotLightRef.current.shadow.camera.far = 70;
-
-    camera.add(spotLightRef.current); // Add spotlight as child of camera
+    spotLightRef.current.visible = false; 
+    spotLightRef.current.position.set(0, 0, 0); 
+    camera.add(spotLightRef.current); 
 
     spotLightTargetRef.current = new THREE.Object3D();
-    spotLightTargetRef.current.position.set(0, 0, -1); // Target is 1 unit in front of camera
-    camera.add(spotLightTargetRef.current); // Add target as child of camera
+    spotLightTargetRef.current.position.set(0, 0, -1); 
+    camera.add(spotLightTargetRef.current); 
     spotLightRef.current.target = spotLightTargetRef.current;
 
 
@@ -479,7 +493,6 @@ export default function ArenaDisplay() {
       buildingsRef.current.push(building);
     };
 
-    // Residential Area
     addBuilding(new THREE.BoxGeometry(4, 3, 5), residentialMaterials, -buildingOffset, 0, -buildingOffset + 5);
     addBuilding(new THREE.BoxGeometry(5, 2.5, 4), residentialMaterials, -buildingOffset + 8, 0, -buildingOffset -2);
     addBuilding(new THREE.BoxGeometry(6, 8, 5), residentialMaterials, -buildingOffset - 5, 0, -buildingOffset - 8);
@@ -489,8 +502,6 @@ export default function ArenaDisplay() {
     addBuilding(new THREE.BoxGeometry(4, 2, 4), residentialMaterials, -buildingOffset + 20, 0, -buildingOffset + 5);
     addBuilding(new THREE.BoxGeometry(5, 4, 5), residentialMaterials, -buildingOffset - 18, 0, -buildingOffset - 18);
 
-
-    // Commercial Zone
     addBuilding(new THREE.BoxGeometry(7, 5, 6), commercialMaterials, buildingOffset, 0, -buildingOffset);
     addBuilding(new THREE.BoxGeometry(5, 10, 5), commercialMaterials, buildingOffset + 10, 0, -buildingOffset + 8);
     addBuilding(new THREE.BoxGeometry(8, 6, 7), commercialMaterials, buildingOffset - 8, 0, -buildingOffset - 10);
@@ -499,8 +510,6 @@ export default function ArenaDisplay() {
     addBuilding(new THREE.BoxGeometry(6.5, 7, 5), commercialMaterials, buildingOffset - 15, 0, -buildingOffset + 12);
     addBuilding(new THREE.BoxGeometry(5.5, 6, 5.5), commercialMaterials, buildingOffset + 22, 0, -buildingOffset + 22);
 
-
-    // Industrial Sector
     addBuilding(new THREE.BoxGeometry(15, 6, 10), industrialMaterials, -buildingOffset + 5, 0, buildingOffset);
 
     const factoryGeom = new THREE.BoxGeometry(10, 8, 8);
@@ -518,15 +527,13 @@ export default function ArenaDisplay() {
     addBuilding(new THREE.BoxGeometry(9, 4, 11), industrialMaterials, -buildingOffset - 2, 0, buildingOffset + 25);
     addBuilding(new THREE.BoxGeometry(14, 6.5, 8.5), industrialMaterials, -buildingOffset + 15, 0, buildingOffset - 10);
 
-
-    // Downtown Area
     addBuilding(new THREE.BoxGeometry(6, 15, 6), downtownMaterials, buildingOffset, 0, buildingOffset);
     addBuilding(new THREE.BoxGeometry(7, 25, 7), downtownMaterials, buildingOffset + 12, 0, buildingOffset + 12);
     addBuilding(new THREE.BoxGeometry(5.5, 20, 5.5), downtownMaterials, buildingOffset - 7, 0, buildingOffset + 8);
     addBuilding(new THREE.BoxGeometry(6.5, 18, 6.5), downtownMaterials, buildingOffset + 20, 0, buildingOffset - 10);
     addBuilding(new THREE.BoxGeometry(5, 22, 5), downtownMaterials, buildingOffset - 15, 0, buildingOffset - 15);
     addBuilding(new THREE.BoxGeometry(8, 30, 8), downtownMaterials, buildingOffset + 25, 0, buildingOffset + 25);
-    addBuilding(new THREE.BoxGeometry(4.5, 16, 4.5), downtownMaterials, buildingOffset - 20, 0, buildingOffset + 20);
+    addBuilding(new THREE.BoxGeometry(4.5, 16, 4.5), downtownMaterials, -buildingOffset - 20, 0, buildingOffset + 20);
 
     const obstacleMaterials = [residentialMaterials, commercialMaterials, industrialMaterials, downtownMaterials];
     for (let i = 0; i < 50; i++) {
@@ -542,6 +549,7 @@ export default function ArenaDisplay() {
 
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
+    document.addEventListener('mousedown', onMouseDown); // Listener for punch/kick
 
     const handleResize = () => {
       if (cameraRef.current && rendererRef.current && mountRef.current) {
@@ -562,7 +570,7 @@ export default function ArenaDisplay() {
         if (rendererRef.current && sceneRef.current && cameraRef.current) {
             rendererRef.current.render(sceneRef.current, cameraRef.current);
         }
-        prevTime.current = time - delta * 1000;
+        prevTime.current = time - delta * 1000; // Adjust prevTime correctly when paused
         return;
       }
 
@@ -571,18 +579,16 @@ export default function ArenaDisplay() {
 
 
       if (onGround.current) {
-        // When on ground, clamp Y position to ensure stability
         player.position.y = playerLastSurfaceY.current + currentEyeOffset;
-        verticalVelocity.current = 0; // No vertical movement when grounded
+        verticalVelocity.current = 0; 
 
-        // Check if player moved off the edge of their current support surface
         let stillSupported = false;
         const playerFeetY = player.position.y - currentEyeOffset;
 
-        // Check main ground
-        if (Math.abs(playerFeetY - 0) < 0.01) {
+        if (Math.abs(playerFeetY - 0) < 0.01) { // Check main ground
              stillSupported = true;
-        } else { // Check building tops
+             playerLastSurfaceY.current = 0; // Explicitly set to main ground
+        } else { 
           for (const building of buildingsRef.current) {
             if (!building.geometry.parameters || building === ground) continue;
             const geomParams = building.geometry.parameters as any;
@@ -599,13 +605,14 @@ export default function ArenaDisplay() {
               Math.abs(playerFeetY - buildingTopActualY) < 0.01
             ) {
               stillSupported = true;
+              playerLastSurfaceY.current = buildingTopActualY; // Update surface Y
               break;
             }
           }
         }
         if (!stillSupported) {
           onGround.current = false;
-          jumpsMadeInAirRef.current = 0; // Reset air jumps if slid off an edge
+          jumpsMadeInAirRef.current = 0; 
         }
       }
       
@@ -616,7 +623,7 @@ export default function ArenaDisplay() {
         player.position.y += verticalVelocity.current * delta;
 
         let landedOnObject = false;
-        if (verticalVelocity.current <= 0) { // Only check for landing if moving downwards
+        if (verticalVelocity.current <= 0) { 
           for (const building of buildingsRef.current) {
             if (!building.geometry.parameters || building === ground) continue;
             const geomParams = building.geometry.parameters as any;
@@ -633,8 +640,8 @@ export default function ArenaDisplay() {
             if (
               player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
               player.position.z >= building.position.z - halfDepth && player.position.z <= building.position.z + halfDepth &&
-              playerPreviousFeetY >= buildingTopActualY - 0.01 && // Was above or at the surface in the previous frame
-              playerCurrentFeetY <= buildingTopActualY + 0.05 // Is at or slightly below surface now
+              playerPreviousFeetY >= buildingTopActualY - 0.01 && 
+              playerCurrentFeetY <= buildingTopActualY + 0.05 
             ) {
               player.position.y = buildingTopActualY + currentEyeOffset;
               verticalVelocity.current = 0;
@@ -646,7 +653,6 @@ export default function ArenaDisplay() {
             }
           }
 
-          // Check for landing on main ground
           const targetPlayerYOnMainGround = currentEyeOffset;
           if (!landedOnObject && player.position.y <= targetPlayerYOnMainGround ) {
              if (previousPlayerY >= targetPlayerYOnMainGround && player.position.y <= targetPlayerYOnMainGround + 0.05) {
@@ -660,7 +666,6 @@ export default function ArenaDisplay() {
         }
       }
 
-      // Movement logic, only apply if pointer is locked (desktop)
       if (controlsRef.current.isLocked === true) {
         velocity.current.x -= velocity.current.x * 10.0 * delta;
         velocity.current.z -= velocity.current.z * 10.0 * delta;
@@ -761,6 +766,7 @@ export default function ArenaDisplay() {
       window.removeEventListener('resize', handleResize);
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keyup', onKeyUp);
+      document.removeEventListener('mousedown', onMouseDown); // Cleanup mouse down listener
 
       const currentBlocker = document.getElementById('blocker');
       if (currentBlocker) {
@@ -771,21 +777,17 @@ export default function ArenaDisplay() {
         controlsRef.current.removeEventListener('lock', onLockHandler);
         controlsRef.current.removeEventListener('unlock', onUnlockHandler);
         if (controlsRef.current.isLocked) {
-          controlsRef.current.unlock(); // Ensure unlock before dispose
+          controlsRef.current.unlock(); 
         }
         controlsRef.current.dispose();
       }
       
       if (spotLightRef.current) {
-        // If spotlight was added to camera, camera.remove will handle it from scene graph
-        // We might need to dispose of its geometry/material if it had any (SpotLightHelper does)
-        // For a raw SpotLight, disposing the light itself is usually not needed unless it has shadow maps
         if(spotLightRef.current.shadow && spotLightRef.current.shadow.map) {
             spotLightRef.current.shadow.map.dispose();
         }
       }
-      // SpotLightTarget is just an Object3D, usually doesn't need explicit disposal unless it has complex children
-
+      
       allTextures.forEach(texture => { if (texture) texture.dispose() });
       placeholderBottomMaterial.dispose();
       residentialMaterials.forEach(material => material.dispose());
@@ -825,14 +827,14 @@ export default function ArenaDisplay() {
       spotLightTargetRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onKeyDown, onKeyUp, clickToLockHandler, onLockHandler, onUnlockHandler]);
+  }, [onKeyDown, onKeyUp, onMouseDown, clickToLockHandler, onLockHandler, onUnlockHandler]); // Added onMouseDown to dependencies
 
   useEffect(() => {
     if (sceneRef.current && ambientLightRef.current && directionalLightRef.current) {
       sceneRef.current.background = dayNightCycle.currentPhaseDetails.backgroundColor;
-      if(sceneRef.current.fog) { // Check if fog exists before updating
+      if(sceneRef.current.fog) { 
         (sceneRef.current.fog as THREE.Fog).color = dayNightCycle.currentPhaseDetails.fogColor;
-      } else { // Initialize fog if it doesn't exist
+      } else { 
         sceneRef.current.fog = new THREE.Fog(dayNightCycle.currentPhaseDetails.fogColor, GROUND_SIZE / 6, GROUND_SIZE * 0.75);
       }
       ambientLightRef.current.color = dayNightCycle.currentPhaseDetails.ambientColor;
@@ -845,4 +847,3 @@ export default function ArenaDisplay() {
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
-

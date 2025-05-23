@@ -11,3 +11,7 @@ export const PLAYER_NORMAL_HEIGHT = 1.7; // Player's eye-level height when stand
 export const PLAYER_CROUCH_HEIGHT = 1.0; // Player's eye-level height when crouching
 export const PLAYER_CROUCH_SPEED_MULTIPLIER = 0.5; // Speed multiplier when crouching
 export const MAX_AIR_JUMPS = 3; // Maximum number of jumps allowed in the air after the initial ground jump
+
+// Player attack constants
+export const PLAYER_PUNCH_DAMAGE = 5;
+export const PLAYER_KICK_DAMAGE = 8;
