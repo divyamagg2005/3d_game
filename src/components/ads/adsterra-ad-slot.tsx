@@ -20,7 +20,9 @@ const AdsterraAdSlot: React.FC<AdsterraAdSlotProps> = ({
   const adLoadedRef = useRef(false); // Prevent re-injecting scripts on HMR
 
   useEffect(() => {
+    console.log(`AdsterraAdSlot: Initializing for ${containerIdSuffix} with key ${adKey}`);
     if (adContainerRef.current && !adLoadedRef.current) {
+      console.log(`AdsterraAdSlot: Injecting scripts for ${containerIdSuffix}`);
       // Clear previous ad content if any (e.g., during HMR)
       adContainerRef.current.innerHTML = '';
 
@@ -49,21 +51,23 @@ const AdsterraAdSlot: React.FC<AdsterraAdSlotProps> = ({
       adContainerRef.current.appendChild(invokeScript);
       
       adLoadedRef.current = true;
+    } else {
+      if (!adContainerRef.current) {
+        console.warn(`AdsterraAdSlot: adContainerRef.current is null for ${containerIdSuffix}. Ad will not load.`);
+      } else if (adLoadedRef.current) {
+        console.log(`AdsterraAdSlot: Scripts already loaded for ${containerIdSuffix}, not re-injecting.`);
+      }
     }
 
     // Cleanup function:
     // Adsterra's scripts might create global variables or iframes.
     // True cleanup is hard without knowing their internals.
-    // Setting adLoadedRef.current to false on unmount could allow re-injection if component remounts.
-    // For simplicity, we're focusing on initial load.
     return () => {
-        // If you want scripts to re-load if component re-mounts (e.g. navigating away and back)
+        // If you want scripts to re-load if component re-mounts
         // you might set adLoadedRef.current = false; here.
-        // However, for ad scripts, it's often better they load once per page view.
-    }
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [adKey, configHeight, configWidth, containerIdSuffix]); // Dependencies ensure script re-runs if key props change
+        // However, for ad scripts, it's often better they load once per page view if props are static.
+    };
+  }, [adKey, configHeight, configWidth, containerIdSuffix]); // Explicitly list dependencies
 
   // The div that will contain the ad scripts and the ad iframe
   return <div ref={adContainerRef} style={{ width: `${configWidth}px`, height: `${configHeight}px`, margin: 'auto' }} />;
