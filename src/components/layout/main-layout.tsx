@@ -45,7 +45,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
       <main className="flex-grow relative flex flex-row">
         {/* Left Ad Space */}
         {!isInFullscreen && (
-          <aside className="w-64 bg-card p-4 flex flex-col items-center justify-center text-muted-foreground border-r border-border/40 transition-all duration-300 ease-in-out">
+          <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-r border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
             <div className="border-2 border-dashed border-muted-foreground/30 p-10 rounded-lg text-center w-full h-full flex flex-col justify-center items-center">
               <p className="text-lg font-semibold">Ad Space</p>
               <p className="text-sm">Future advertisement</p>
@@ -54,13 +54,13 @@ export default function MainLayout({ children }: MainLayoutProps) {
         )}
 
         {/* Game Content Area */}
-        <div className={`flex-grow flex flex-col overflow-hidden ${isInFullscreen ? 'w-full h-full fixed inset-0 z-[60]' : ''}`}>
+        <div className={`${isInFullscreen ? 'w-full h-full fixed inset-0 z-[60] flex flex-col' : 'flex-grow flex flex-col overflow-hidden'}`}>
           {children}
         </div>
 
         {/* Right Ad Space */}
         {!isInFullscreen && (
-          <aside className="w-64 bg-card p-4 flex flex-col items-center justify-center text-muted-foreground border-l border-border/40 transition-all duration-300 ease-in-out">
+          <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-l border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
             <div className="border-2 border-dashed border-muted-foreground/30 p-10 rounded-lg text-center w-full h-full flex flex-col justify-center items-center">
               <p className="text-lg font-semibold">Ad Space</p>
               <p className="text-sm">Future advertisement</p>
