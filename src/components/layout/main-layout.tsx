@@ -6,7 +6,8 @@ import { GameLogo } from '@/components/icons/game-logo';
 import Link from 'next/link';
 import AdsterraAdSlot from '@/components/ads/adsterra-ad-slot';
 import { useState, useEffect } from 'react';
-import PlayerStatsDisplay from '@/components/game/player-stats-display'; // Import the new component
+import PlayerStatsDisplay from '@/components/game/player-stats-display';
+import { PLAYER_MAX_HEALTH } from '@/config/game-constants';
 
 type MainLayoutProps = {
   children: ReactNode;
@@ -32,7 +33,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </div>
       </header>
 
-      <main className="relative flex flex-row flex-grow overflow-hidden"> {/* Added overflow-hidden here */}
+      <main className="relative flex flex-row flex-grow overflow-hidden">
         <aside className="w-64 bg-card p-4 flex-col items-center justify-start text-muted-foreground border-r border-border/40 transition-all duration-300 ease-in-out hidden md:flex overflow-y-auto">
           {isClient && (
             <AdsterraAdSlot
@@ -51,8 +52,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </div>
 
         <aside className="w-64 bg-card p-1 flex flex-col items-center text-muted-foreground border-l border-border/40 transition-all duration-300 ease-in-out hidden md:flex overflow-y-auto">
-          {/* Right sidebar content - Player Stats */}
-          {isClient && <PlayerStatsDisplay />}
+          {isClient && <PlayerStatsDisplay currentHealth={PLAYER_MAX_HEALTH} maxHealth={PLAYER_MAX_HEALTH} />}
         </aside>
       </main>
     </div>

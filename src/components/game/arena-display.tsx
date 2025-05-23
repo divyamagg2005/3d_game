@@ -22,6 +22,7 @@ import {
     SWORD_DAMAGE,
     POWERUP_COLLECTION_DISTANCE,
     POWERUP_GLOW_INTENSITY,
+    PLAYER_MAX_HEALTH, // Import new constant
 } from '@/config/game-constants';
 
 interface DayNightPhase {
@@ -36,9 +37,9 @@ interface DayNightPhase {
 const dayNightCycleConfig = {
   cycleDuration: 120, 
   phases: [
-    { name: 'Day', duration: 0.4, ambient: [0xffffff, 2.5], directional: [0xffffff, 3.0], background: 0x87CEEB, fog: 0x87CEEB },
+    { name: 'Day', duration: 0.4, ambient: [0xffffff, 2.5], directional: [0xffffff, 3.0], background: 0x66ccff, fog: 0x66ccff },
     { name: 'Dusk', duration: 0.15, ambient: [0xffaa77, 0.3], directional: [0xffaa77, 0.4], background: 0x403050, fog: 0x403050 },
-    { name: 'Night', duration: 0.3, ambient: [0x050510, 0.01], directional: [0x101020, 0.02], background: 0x000005, fog: 0x000005 },
+    { name: 'Night', duration: 0.3, ambient: [0x0a0a1a, 0.005], directional: [0x101020, 0.01], background: 0x000005, fog: 0x000005 },
     { name: 'Dawn', duration: 0.15, ambient: [0x88aabb, 0.2], directional: [0x88aabb, 0.3], background: 0x304060, fog: 0x304060 },
   ] as DayNightPhase[],
 };
@@ -58,7 +59,7 @@ interface DayNightCycleState {
 
 type PowerUpType = 'gun1' | 'gun2' | 'sword';
 interface WorldPowerUp {
-    mesh: THREE.Mesh; // The glowing box in the world
+    mesh: THREE.Mesh; 
     type: PowerUpType;
     id: string; 
     collected: boolean;
@@ -130,14 +131,16 @@ export default function ArenaDisplay() {
   const jumpsMadeInAirRef = useRef(0);
   const isTorchOnRef = useRef(false);
   
-  const isPrimaryActionRef = useRef(false);
-  const isKickingRef = useRef(false);
+  const isPrimaryActionRef = useRef(false); // For camera dip
+  const isKickingRef = useRef(false); // For kick camera dip
   const equippedWeaponRef = useRef<PowerUpType | null>(null);
   const worldPowerUpsRef = useRef<WorldPowerUp[]>([]);
   const handheldWeaponsRef = useRef<HandheldWeapons>({ sword: null, gun1: null, gun2: null });
   
   const isAnimatingAttackRef = useRef(false);
   const attackAnimStartTimeRef = useRef(0);
+
+  const playerHealthRef = useRef(PLAYER_MAX_HEALTH);
 
 
   const direction = useRef(new THREE.Vector3());
@@ -166,6 +169,16 @@ export default function ArenaDisplay() {
       },
     };
   });
+
+  const takePlayerDamage = (amount: number) => {
+    if (!playerHealthRef.current) return;
+    playerHealthRef.current -= amount;
+    if (playerHealthRef.current < 0) {
+      playerHealthRef.current = 0;
+    }
+    console.log(`Player took ${amount} damage. Current health: ${playerHealthRef.current}`);
+    // Here you would eventually trigger game over logic if health is 0
+  };
 
   const onKeyDown = useCallback((event: KeyboardEvent) => {
     switch (event.code) {
@@ -211,6 +224,11 @@ export default function ArenaDisplay() {
         if (!isPaused.current && controlsRef.current?.isLocked && spotLightRef.current) {
             isTorchOnRef.current = !isTorchOnRef.current;
             spotLightRef.current.visible = isTorchOnRef.current;
+        }
+        break;
+      case 'KeyL': // Test damage
+        if (!isPaused.current && controlsRef.current?.isLocked) {
+            takePlayerDamage(10);
         }
         break;
       case 'KeyP': {
@@ -270,38 +288,33 @@ export default function ArenaDisplay() {
 
   const onMouseDown = useCallback((event: MouseEvent) => {
     if (controlsRef.current?.isLocked && !isPaused.current && !isAnimatingAttackRef.current) {
-      isPrimaryActionRef.current = true; // For camera dip
       isAnimatingAttackRef.current = true;
       attackAnimStartTimeRef.current = performance.now();
 
-      setTimeout(() => {
-        isPrimaryActionRef.current = false;
-      }, 100); // Camera dip duration
-
       switch (event.button) {
         case 0: // Left mouse button
+          isPrimaryActionRef.current = true; // For camera dip
+          setTimeout(() => { isPrimaryActionRef.current = false; }, 100);
+
           if (equippedWeaponRef.current === 'gun1') {
-            console.log("Player Action: Shoot Gun 1");
+            console.log("Player Action: Shoot Gun 1 - Damage:", GUN1_DAMAGE);
           } else if (equippedWeaponRef.current === 'gun2') {
-            console.log("Player Action: Shoot Gun 2");
+            console.log("Player Action: Shoot Gun 2 - Damage:", GUN2_DAMAGE);
           } else if (equippedWeaponRef.current === 'sword') {
-            console.log("Player Action: Swing Sword");
+            console.log("Player Action: Swing Sword - Damage:", SWORD_DAMAGE);
           } else {
-            console.log("Player Action: Punch");
-            // If no weapon, primary action is punch, but no specific mesh animation for punch yet
-            // So, we can reset isAnimatingAttackRef sooner for punch if no visual is tied to it
-             setTimeout(() => isAnimatingAttackRef.current = false, 100);
+            console.log("Player Action: Punch - Damage:", PLAYER_PUNCH_DAMAGE);
+             setTimeout(() => isAnimatingAttackRef.current = false, 100); // Shorter for punch if no visual
           }
           break;
         case 2: // Right mouse button
           isKickingRef.current = true; 
-          console.log("Player Action: Kick");
           setTimeout(() => isKickingRef.current = false, 100);
-          // Kick is separate, not using attack animation system for now
+          console.log("Player Action: Kick - Damage:", PLAYER_KICK_DAMAGE);
           isAnimatingAttackRef.current = false; 
           break;
         default:
-            isAnimatingAttackRef.current = false; // Reset if not a handled button
+            isAnimatingAttackRef.current = false;
             break;
       }
     }
@@ -309,10 +322,9 @@ export default function ArenaDisplay() {
 
   const positionWeaponInHand = (weaponMesh: THREE.Mesh, type: PowerUpType) => {
     if (!cameraRef.current) return;
-    // These values are placeholders and will need careful adjustment
     if (type === 'sword') {
         weaponMesh.position.set(0.35, -0.3, -0.5);
-        weaponMesh.rotation.set(0, -Math.PI / 2 - 0.2, 0); // Adjusted for better sword holding angle
+        weaponMesh.rotation.set(0, -Math.PI / 2 - 0.2, 0); 
     } else if (type === 'gun1' || type === 'gun2') {
         weaponMesh.position.set(0.3, -0.25, -0.4);
         weaponMesh.rotation.set(0, -Math.PI / 2, 0);
@@ -392,7 +404,7 @@ export default function ArenaDisplay() {
 
     const controls = new PointerLockControls(camera, renderer.domElement);
     controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002;
-    scene.add(controls.getObject()); // Add camera's parent object to scene
+    scene.add(controls.getObject()); 
     controlsRef.current = controls;
 
     const instructionsElement = document.getElementById('instructions');
@@ -452,22 +464,16 @@ export default function ArenaDisplay() {
 
     const textureLoader = new THREE.TextureLoader();
     const textureLoadError = (textureName: string) => (event: ErrorEvent | Event) => {
-      console.error(`ArenaDisplay: Texture loading failed for '${textureName}'. Attempted path: /textures/${textureName}`);
-      if (event && 'message' in event && event instanceof ErrorEvent) {
-        console.error('ErrorEvent details:', {
-          message: event.message,
-          filename: event.filename,
-          lineno: event.lineno,
-          colno: event.colno,
-          errorObject: event.error,
-        });
+      let errorMessage = `ArenaDisplay: Texture loading failed for '${textureName}'. Attempted path: /textures/${textureName}.`;
+      if (event && event instanceof ErrorEvent && event.message) {
+        errorMessage += ` Details: ${event.message}`;
       } else if (event && event.target instanceof Image) {
-        console.error('Image load error on target. src:', (event.target as HTMLImageElement).src);
+        errorMessage += ` Image load error on target. src: ${(event.target as HTMLImageElement).src}`;
       } else {
-        console.error('An unknown error occurred during texture loading, or event details are unavailable.', event);
+        errorMessage += ` An unknown error occurred during texture loading.`;
       }
+      console.error(errorMessage, event);
     };
-
 
     const groundTexture = textureLoader.load('/textures/ground-texture.jpg', undefined, undefined, textureLoadError('ground-texture.jpg'));
     const roofTexture = textureLoader.load('/textures/roof-texture.jpg', undefined, undefined, textureLoadError('roof-texture.jpg'));
@@ -510,8 +516,7 @@ export default function ArenaDisplay() {
     const smokestackMaterial = new THREE.MeshStandardMaterial({ map: wallTexture3, roughness: 0.9, metalness: 0.6 });
 
 
-    const groundGeometry = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE);
-    const ground = new THREE.Mesh(groundGeometry, texturedGroundMaterial);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE), texturedGroundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
@@ -536,8 +541,6 @@ export default function ArenaDisplay() {
     wallW.position.set(-GROUND_SIZE/2 - wallThickness/2, wallHeight/2, 0);
     wallW.castShadow = true; wallW.receiveShadow = true; scene.add(wallW); buildingsRef.current.push(wallW);
 
-    const buildingOffset = GROUND_SIZE / 4;
-
     const addBuilding = (geometry: THREE.BufferGeometry, materials: THREE.Material | THREE.Material[], x: number, yBase: number, z: number) => {
       const buildingHeightParam = (geometry.parameters as any).height;
       const building = new THREE.Mesh(geometry, materials);
@@ -548,25 +551,22 @@ export default function ArenaDisplay() {
       buildingsRef.current.push(building);
     };
 
-    addBuilding(new THREE.BoxGeometry(4, 3, 5), residentialMaterials, -buildingOffset, 0, -buildingOffset + 5);
-    addBuilding(new THREE.BoxGeometry(5, 2.5, 4), residentialMaterials, -buildingOffset + 8, 0, -buildingOffset -2);
-    // ... many more addBuilding calls ... (omitted for brevity, assuming they are the same as before)
     const obstacleMaterials = [residentialMaterials, commercialMaterials, industrialMaterials, downtownMaterials];
-    for (let i = 0; i < 50; i++) {
-        const sizeX = Math.random() * 2 + 1;
-        const sizeY = Math.random() * 3 + 1;
-        const sizeZ = Math.random() * 2 + 1;
-        const posX = (Math.random() - 0.5) * (GROUND_SIZE - sizeX);
-        const posZ = (Math.random() - 0.5) * (GROUND_SIZE - sizeZ);
+    const numBaseBuildings = 30;
+    for (let i = 0; i < numBaseBuildings; i++) {
+        const sizeX = THREE.MathUtils.randFloat(2, 6);
+        const sizeY = THREE.MathUtils.randFloat(1.5, 8);
+        const sizeZ = THREE.MathUtils.randFloat(2, 6);
+        const posX = (Math.random() - 0.5) * (GROUND_SIZE - sizeX - 4); 
+        const posZ = (Math.random() - 0.5) * (GROUND_SIZE - sizeZ - 4);
         const matIndex = Math.floor(Math.random() * obstacleMaterials.length);
         addBuilding(new THREE.BoxGeometry(sizeX, sizeY, sizeZ), obstacleMaterials[matIndex], posX, 0, posZ);
     }
-    addBuilding(new THREE.BoxGeometry(6, 15, 6), downtownMaterials, buildingOffset, 0, buildingOffset);
-    addBuilding(new THREE.BoxGeometry(7, 25, 7), downtownMaterials, buildingOffset + 12, 0, buildingOffset + 12);
+    addBuilding(new THREE.CylinderGeometry(0.5, 0.5, 10, 16), smokestackMaterial, (Math.random() - 0.5) * GROUND_SIZE * 0.6, 0, (Math.random() - 0.5) * GROUND_SIZE * 0.6);
+    addBuilding(new THREE.BoxGeometry(6, 25, 6), downtownMaterials, (Math.random() - 0.5) * GROUND_SIZE * 0.3, 0, (Math.random() - 0.5) * GROUND_SIZE * 0.3);
 
 
-    // Create handheld weapon meshes (initially hidden and not in scene)
-    const swordHandGeo = new THREE.BoxGeometry(0.1, 1.0, 0.05); // Thin and long
+    const swordHandGeo = new THREE.BoxGeometry(0.1, 1.0, 0.05); 
     const swordHandMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.3, metalness: 0.8 });
     handheldWeaponsRef.current.sword = new THREE.Mesh(swordHandGeo, swordHandMat);
     handheldWeaponsRef.current.sword.visible = false;
@@ -581,7 +581,6 @@ export default function ArenaDisplay() {
     handheldWeaponsRef.current.gun2.visible = false;
 
 
-    // World Power-up Placeholders
     const powerUpY = 0.5; 
     const powerUpDefinitions: { type: PowerUpType; color: number; size: [number, number, number] }[] = [
         { type: 'gun1', color: 0x0000ff, size: [0.5, 0.5, 0.5] }, 
@@ -592,14 +591,14 @@ export default function ArenaDisplay() {
     const numZones = powerUpDefinitions.length;
     const zoneWidth = GROUND_SIZE / numZones;
     const halfGround = GROUND_SIZE / 2;
-    worldPowerUpsRef.current = []; // Clear before populating
+    worldPowerUpsRef.current = []; 
 
     powerUpDefinitions.forEach((def, index) => {
         const zoneStartX = -halfGround + index * zoneWidth;
         const zoneEndX = zoneStartX + zoneWidth;
 
-        const x = THREE.MathUtils.randFloat(zoneStartX + 1, zoneEndX - 1); 
-        const z = THREE.MathUtils.randFloat(-halfGround + 1, halfGround - 1); 
+        const x = THREE.MathUtils.randFloat(zoneStartX + 2, zoneEndX - 2); 
+        const z = THREE.MathUtils.randFloat(-halfGround + 2, halfGround - 2); 
 
         const geometry = new THREE.BoxGeometry(...def.size as [number, number, number]);
         const material = new THREE.MeshStandardMaterial({ 
@@ -679,8 +678,9 @@ export default function ArenaDisplay() {
                     const buildingBaseY = building.position.y - buildingHeight / 2;
                     const buildingTopActualY = buildingBaseY + buildingHeight;
 
-                    const halfWidth = geomParams.width ? geomParams.width / 2 : (geomParams.radiusTop || 0);
-                    const halfDepth = geomParams.depth ? geomParams.depth / 2 : (geomParams.radiusTop || 0);
+                    const halfWidth = geomParams.width ? geomParams.width / 2 : (geomParams.radiusTop || geomParams.radiusBottom || 0);
+                    const halfDepth = geomParams.depth ? geomParams.depth / 2 : (geomParams.radiusTop || geomParams.radiusBottom || 0);
+
 
                     if (
                         player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
@@ -711,7 +711,7 @@ export default function ArenaDisplay() {
         player.position.y += verticalVelocity.current * delta;
 
         let landedOnObject = false;
-        if (verticalVelocity.current <= 0) {
+        if (verticalVelocity.current <= 0) { // Only check for landing if moving downwards
           for (const building of buildingsRef.current) {
             if (!building.geometry.parameters || building === ground) continue;
             const geomParams = building.geometry.parameters as any;
@@ -719,8 +719,9 @@ export default function ArenaDisplay() {
             const buildingBaseY = building.position.y - buildingHeightParam / 2;
             const buildingTopActualY = buildingBaseY + buildingHeightParam;
 
-            const halfWidth = geomParams.width ? geomParams.width / 2 : (geomParams.radiusTop || 0);
-            const halfDepth = geomParams.depth ? geomParams.depth / 2 : (geomParams.radiusTop || 0);
+            const halfWidth = geomParams.width ? geomParams.width / 2 : (geomParams.radiusTop || geomParams.radiusBottom || 0);
+            const halfDepth = geomParams.depth ? geomParams.depth / 2 : (geomParams.radiusTop || geomParams.radiusBottom || 0);
+
 
             const playerCurrentFeetY = player.position.y - physicsEyeOffset; 
             const playerPreviousFeetY = previousPlayerY - physicsEyeOffset;
@@ -805,8 +806,6 @@ export default function ArenaDisplay() {
         player.position.x = Math.max(-halfGroundMinusRadius, Math.min(halfGroundMinusRadius, player.position.x));
         player.position.z = Math.max(-halfGroundMinusRadius, Math.min(halfGroundMinusRadius, player.position.z));
 
-
-        // Power-up collection logic
         const playerPos = player.position;
         for (let i = worldPowerUpsRef.current.length - 1; i >= 0; i--) {
             const powerUp = worldPowerUpsRef.current[i];
@@ -815,9 +814,8 @@ export default function ArenaDisplay() {
                 if (distanceToPowerUp < POWERUP_COLLECTION_DISTANCE) {
                     console.log(`Collected ${powerUp.type}`);
                     powerUp.collected = true;
-                    powerUp.mesh.visible = false; // Hide world power-up
+                    powerUp.mesh.visible = false; 
 
-                    // Unequip previous weapon if any
                     if (equippedWeaponRef.current && handheldWeaponsRef.current[equippedWeaponRef.current]) {
                         const oldWeaponMesh = handheldWeaponsRef.current[equippedWeaponRef.current];
                         if (oldWeaponMesh && oldWeaponMesh.parent === cameraRef.current) {
@@ -838,33 +836,28 @@ export default function ArenaDisplay() {
             }
         }
 
-        // Attack Animation Logic
         if (isAnimatingAttackRef.current) {
             const currentTime = performance.now();
             const animProgress = (currentTime - attackAnimStartTimeRef.current) / (ATTACK_ANIMATION_DURATION * 1000);
 
             const weaponMesh = equippedWeaponRef.current ? handheldWeaponsRef.current[equippedWeaponRef.current] : null;
 
-            if (weaponMesh) {
+            if (weaponMesh && weaponMesh.visible) { // Check if weaponMesh is visible
                 if (animProgress < 1) {
                     if (equippedWeaponRef.current === 'sword') {
-                        // Simple swing: quick rotation forth and back
-                        const swingAngle = Math.sin(animProgress * Math.PI) * (Math.PI / 3); // Max 60 deg swing
+                        const swingAngle = Math.sin(animProgress * Math.PI) * (Math.PI / 3); 
                         weaponMesh.rotation.z = swingAngle; 
                     } else if (equippedWeaponRef.current === 'gun1' || equippedWeaponRef.current === 'gun2') {
-                        // Simple recoil: move back then forth
-                        const recoilAmount = Math.sin(animProgress * Math.PI) * 0.1; // Max 0.1 units back
-                        weaponMesh.position.z = -0.4 - recoilAmount; // Assuming base z is -0.4
+                        const recoilAmount = Math.sin(animProgress * Math.PI) * 0.1; 
+                        weaponMesh.position.z = -0.4 - recoilAmount; 
                     }
                 } else {
-                    // Reset animation state and weapon position/rotation
                     isAnimatingAttackRef.current = false;
-                    if (equippedWeaponRef.current === 'sword') weaponMesh.rotation.z = 0;
-                    else if (equippedWeaponRef.current === 'gun1' || equippedWeaponRef.current === 'gun2') weaponMesh.position.z = -0.4; // Reset to base
-                    positionWeaponInHand(weaponMesh, equippedWeaponRef.current); // Ensure it's back to resting
+                    if (equippedWeaponRef.current) { // Check if a weapon is still equipped
+                         positionWeaponInHand(weaponMesh, equippedWeaponRef.current); 
+                    }
                 }
             } else {
-                // No weapon, or animation finished for non-weapon attack
                  if (animProgress >= 1) isAnimatingAttackRef.current = false;
             }
         }
@@ -954,7 +947,6 @@ export default function ArenaDisplay() {
       boundaryWallMaterial.dispose();
       texturedGroundMaterial.dispose();
 
-      // Dispose handheld weapon materials and geometries
       Object.values(handheldWeaponsRef.current).forEach(weaponMesh => {
         if (weaponMesh) {
             if (weaponMesh.geometry) weaponMesh.geometry.dispose();
@@ -965,7 +957,6 @@ export default function ArenaDisplay() {
             if (cameraRef.current && weaponMesh.parent === cameraRef.current) cameraRef.current.remove(weaponMesh);
         }
       });
-
 
       worldPowerUpsRef.current.forEach(powerUp => {
         if (powerUp.mesh.geometry) powerUp.mesh.geometry.dispose();
@@ -987,10 +978,14 @@ export default function ArenaDisplay() {
              sceneRef.current.traverse(object => {
                 if (object instanceof THREE.Mesh) {
                     if (object.geometry) object.geometry.dispose();
+                    if (object.material) {
+                        if (Array.isArray(object.material)) {
+                            object.material.forEach(m => m.dispose());
+                        } else {
+                           (object.material as THREE.Material).dispose();
+                        }
+                    }
                 }
-             });
-             buildingsRef.current.forEach(building => {
-                if(building.geometry) building.geometry.dispose();
              });
              buildingsRef.current = [];
          }
@@ -1030,5 +1025,3 @@ export default function ArenaDisplay() {
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
-
-    

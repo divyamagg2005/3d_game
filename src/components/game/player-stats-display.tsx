@@ -6,13 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useState, useEffect } from 'react';
 
-// TODO: These values will eventually come from game state props
-const MAX_HEALTH = 150; // Updated to 150
+// Timer and checkpoint constants remain for placeholder functionality
 const INITIAL_TIME = 90;
 const TOTAL_CHECKPOINTS = 5;
 
-export default function PlayerStatsDisplay() {
-  const [currentHealth, setCurrentHealth] = useState(MAX_HEALTH); // Initial health is now 150
+interface PlayerStatsDisplayProps {
+  currentHealth: number;
+  maxHealth: number;
+}
+
+export default function PlayerStatsDisplay({ currentHealth, maxHealth }: PlayerStatsDisplayProps) {
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
   const [checkpointsFound, setCheckpointsFound] = useState(0);
   const [villainNearby, setVillainNearby] = useState(false); // Placeholder state
@@ -33,8 +36,7 @@ export default function PlayerStatsDisplay() {
     return () => clearInterval(villainToggleInterval);
   }, []);
 
-
-  const healthPercentage = (currentHealth / MAX_HEALTH) * 100;
+  const healthPercentage = (currentHealth / maxHealth) * 100;
 
   return (
     <div className="w-full p-4 space-y-4">
@@ -48,7 +50,7 @@ export default function PlayerStatsDisplay() {
         <CardContent className="p-3 pt-0">
           <Progress value={healthPercentage} className="w-full h-4 mb-1" />
           <p className="text-sm text-right font-semibold text-foreground">
-            {currentHealth} / {MAX_HEALTH}
+            {currentHealth} / {maxHealth}
           </p>
         </CardContent>
       </Card>
