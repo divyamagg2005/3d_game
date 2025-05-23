@@ -4,18 +4,17 @@
 import { Heart, Timer, CheckSquare, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { usePlayerHealth } from '@/contexts/player-health-context';
+
 
 // Timer and checkpoint constants remain for placeholder functionality
 const INITIAL_TIME = 90;
 const TOTAL_CHECKPOINTS = 5;
 
-interface PlayerStatsDisplayProps {
-  currentHealth: number;
-  maxHealth: number;
-}
 
-export default function PlayerStatsDisplay({ currentHealth, maxHealth }: PlayerStatsDisplayProps) {
+export default function PlayerStatsDisplay() {
+  const { currentHealth, maxHealth } = usePlayerHealth();
   const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
   const [checkpointsFound, setCheckpointsFound] = useState(0);
   const [villainNearby, setVillainNearby] = useState(false); // Placeholder state
@@ -36,7 +35,7 @@ export default function PlayerStatsDisplay({ currentHealth, maxHealth }: PlayerS
     return () => clearInterval(villainToggleInterval);
   }, []);
 
-  const healthPercentage = (currentHealth / maxHealth) * 100;
+  const healthPercentage = maxHealth > 0 ? (currentHealth / maxHealth) * 100 : 0;
 
   return (
     <div className="w-full p-4 space-y-4">
