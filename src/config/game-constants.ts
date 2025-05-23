@@ -22,6 +22,8 @@ export const SWORD_DAMAGE = 30;
 // Power-up constants
 export const POWERUP_COLLECTION_DISTANCE = 1.5; // Distance within which player collects power-up
 export const POWERUP_GLOW_INTENSITY = 1.5;
+export const INVINCIBILITY_DURATION = 10; // seconds
 
 // Player Health
 export const PLAYER_MAX_HEALTH = 150;
+

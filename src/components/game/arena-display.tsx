@@ -23,6 +23,7 @@ import {
     POWERUP_COLLECTION_DISTANCE,
     POWERUP_GLOW_INTENSITY,
     PLAYER_MAX_HEALTH,
+    INVINCIBILITY_DURATION,
 } from '@/config/game-constants';
 import { usePlayerHealth } from '@/contexts/player-health-context';
 
@@ -38,7 +39,7 @@ interface DayNightPhase {
 const dayNightCycleConfig = {
   cycleDuration: 120, // Total cycle in seconds
   phases: [
-    { name: 'Day', duration: 0.4, ambient: [0xffffff, 2.5], directional: [0xffffff, 3.0], background: 0x66ccff, fog: 0x66ccff },
+    { name: 'Day', duration: 0.4, ambient: [0xffffff, 2.5], directional: [0xffffff, 3.0], background: 0x88ccff, fog: 0x88ccff },
     { name: 'Dusk', duration: 0.15, ambient: [0xffaa77, 0.3], directional: [0xffaa77, 0.4], background: 0x403050, fog: 0x403050 },
     { name: 'Night', duration: 0.3, ambient: [0x0a0a1a, 0.005], directional: [0x101020, 0.01], background: 0x000005, fog: 0x000005 },
     { name: 'Dawn', duration: 0.15, ambient: [0x88aabb, 0.2], directional: [0x88aabb, 0.3], background: 0x304060, fog: 0x304060 },
@@ -58,7 +59,7 @@ interface DayNightCycleState {
   };
 }
 
-type PowerUpType = 'gun1' | 'gun2' | 'sword' | 'health'; // Added 'health'
+type PowerUpType = 'gun1' | 'gun2' | 'sword' | 'health' | 'invincibility';
 interface WorldPowerUp {
     mesh: THREE.Mesh; 
     type: PowerUpType;
@@ -132,9 +133,9 @@ export default function ArenaDisplay() {
   const jumpsMadeInAirRef = useRef(0);
   const isTorchOnRef = useRef(false);
   
-  const isPrimaryActionRef = useRef(false); // For camera dip for primary action
-  const isKickingRef = useRef(false); // For kick camera dip
-  const equippedWeaponRef = useRef<PowerUpType | null>(null); // This will only store weapon types
+  const isPunchingRef = useRef(false);
+  const isKickingRef = useRef(false);
+  const equippedWeaponRef = useRef<PowerUpType | null>(null); 
   const worldPowerUpsRef = useRef<WorldPowerUp[]>([]);
   const handheldWeaponsRef = useRef<HandheldWeapons>({ sword: null, gun1: null, gun2: null });
   
@@ -143,6 +144,8 @@ export default function ArenaDisplay() {
 
   const { setCurrentHealth } = usePlayerHealth();
   const playerHealthRef = useRef(PLAYER_MAX_HEALTH);
+  const isInvincibleRef = useRef(false);
+  const invincibilityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
 
   const direction = useRef(new THREE.Vector3());
@@ -173,6 +176,10 @@ export default function ArenaDisplay() {
   });
 
   const takePlayerDamage = useCallback((amount: number) => {
+    if (isInvincibleRef.current) {
+        console.log("Player is invincible, no damage taken.");
+        return; 
+    }
     if (!playerHealthRef.current) return;
     
     let newHealth = playerHealthRef.current - amount;
@@ -252,7 +259,7 @@ export default function ArenaDisplay() {
         } else {
           if (pausedMessageEl) pausedMessageEl.style.display = 'none';
           if (blockerEl) {
-            if (!controlsRef.current?.isLocked) {
+            if (controlsRef.current && !controlsRef.current.isLocked) {
               blockerEl.style.display = 'grid';
               if (instructionsEl) instructionsEl.style.display = '';
             } else {
@@ -298,8 +305,8 @@ export default function ArenaDisplay() {
 
       switch (event.button) {
         case 0: // Left mouse button
-          isPrimaryActionRef.current = true; 
-          setTimeout(() => { isPrimaryActionRef.current = false; }, 100);
+          isPunchingRef.current = true; 
+          setTimeout(() => { isPunchingRef.current = false; }, 100);
 
           if (equippedWeaponRef.current === 'gun1') {
             console.log("Player Action: Shoot Gun 1 - Damage:", GUN1_DAMAGE);
@@ -307,16 +314,17 @@ export default function ArenaDisplay() {
             console.log("Player Action: Shoot Gun 2 - Damage:", GUN2_DAMAGE);
           } else if (equippedWeaponRef.current === 'sword') {
             console.log("Player Action: Swing Sword - Damage:", SWORD_DAMAGE);
-          } else {
+          } else { // No weapon equipped or other type (health/invincibility)
             console.log("Player Action: Punch - Damage:", PLAYER_PUNCH_DAMAGE);
-             setTimeout(() => isAnimatingAttackRef.current = false, 100); 
+            // No specific animation for punch in hand if no weapon, camera dip is primary feedback
           }
+          // Attack animation reset is handled within the animate loop or after a delay for weapon anims
           break;
         case 2: // Right mouse button
           isKickingRef.current = true; 
           setTimeout(() => isKickingRef.current = false, 100);
           console.log("Player Action: Kick - Damage:", PLAYER_KICK_DAMAGE);
-          isAnimatingAttackRef.current = false; 
+          isAnimatingAttackRef.current = false; // Kicks are instant, no complex animation
           break;
         default:
             isAnimatingAttackRef.current = false;
@@ -425,7 +433,7 @@ export default function ArenaDisplay() {
     if (pausedMessageElement) pausedMessageElement.style.display = 'none';
 
     if (currentMount) {
-      if (!controls.isLocked ) { 
+      if (controlsRef.current && !controlsRef.current.isLocked ) { 
         if (blockerElement) blockerElement.style.display = 'grid';
         if (instructionsElement) instructionsElement.style.display = '';
         if (isPaused.current) { 
@@ -587,11 +595,12 @@ export default function ArenaDisplay() {
         { type: 'gun1', color: 0x0000ff, size: [0.5, 0.5, 0.5] }, 
         { type: 'gun2', color: 0x00ff00, size: [0.5, 0.5, 0.5] }, 
         { type: 'sword', color: 0x808080, size: [0.2, 1.5, 0.2] }, 
-        { type: 'health', color: 0xff00ff, size: [0.6, 0.6, 0.6] }, // Magenta cube for health
+        { type: 'health', color: 0xff00ff, size: [0.6, 0.6, 0.6] },
+        { type: 'invincibility', color: 0xffff00, size: [0.7, 0.7, 0.7] },
     ];
 
-    const numZones = powerUpDefinitions.length;
-    const zoneWidth = GROUND_SIZE / numZones;
+    const numPowerUps = powerUpDefinitions.length;
+    const zoneWidth = GROUND_SIZE / numPowerUps;
     const halfGround = GROUND_SIZE / 2;
     worldPowerUpsRef.current = []; 
 
@@ -649,7 +658,7 @@ export default function ArenaDisplay() {
       const physicsEyeOffset = isCrouching.current ? PLAYER_CROUCH_HEIGHT : PLAYER_NORMAL_HEIGHT;
       let visualEyeOffset = physicsEyeOffset; 
 
-      if (isPrimaryActionRef.current || isKickingRef.current) { 
+      if (isPunchingRef.current || isKickingRef.current) { 
         visualEyeOffset -= 0.05; 
       }
 
@@ -836,12 +845,22 @@ export default function ArenaDisplay() {
 
                     if (powerUp.type === 'health') {
                         setCurrentHealth(PLAYER_MAX_HEALTH);
-                        playerHealthRef.current = PLAYER_MAX_HEALTH; // Also update local ref if needed
+                        playerHealthRef.current = PLAYER_MAX_HEALTH;
                         console.log("Player health restored to maximum!");
+                    } else if (powerUp.type === 'invincibility') {
+                        isInvincibleRef.current = true;
+                        console.log(`Player is INVINCIBLE for ${INVINCIBILITY_DURATION} seconds!`);
+                        if (invincibilityTimeoutRef.current) {
+                            clearTimeout(invincibilityTimeoutRef.current);
+                        }
+                        invincibilityTimeoutRef.current = setTimeout(() => {
+                            isInvincibleRef.current = false;
+                            console.log("Invincibility WORE OFF!");
+                        }, INVINCIBILITY_DURATION * 1000);
+                         // Does not change equipped weapon
                     } else { // It's a weapon
-                        // Unequip old weapon if any
-                        if (equippedWeaponRef.current && handheldWeaponsRef.current[equippedWeaponRef.current as keyof HandheldWeapons]) {
-                            const oldWeaponMesh = handheldWeaponsRef.current[equippedWeaponRef.current as keyof HandheldWeapons];
+                        if (equippedWeaponRef.current && handheldWeaponsRef.current[equippedWeaponRef.current as Exclude<PowerUpType, 'health' | 'invincibility'>]) {
+                            const oldWeaponMesh = handheldWeaponsRef.current[equippedWeaponRef.current as Exclude<PowerUpType, 'health' | 'invincibility'>];
                             if (oldWeaponMesh && oldWeaponMesh.parent === cameraRef.current) {
                                 cameraRef.current?.remove(oldWeaponMesh);
                                 oldWeaponMesh.visible = false;
@@ -849,7 +868,7 @@ export default function ArenaDisplay() {
                         }
                         
                         equippedWeaponRef.current = powerUp.type;
-                        const newWeaponMesh = handheldWeaponsRef.current[powerUp.type as keyof HandheldWeapons];
+                        const newWeaponMesh = handheldWeaponsRef.current[powerUp.type as Exclude<PowerUpType, 'health' | 'invincibility'>];
                         if (newWeaponMesh && cameraRef.current) {
                             cameraRef.current.add(newWeaponMesh);
                             newWeaponMesh.visible = true;
@@ -865,7 +884,9 @@ export default function ArenaDisplay() {
             const currentTime = performance.now();
             const animProgress = (currentTime - attackAnimStartTimeRef.current) / (ATTACK_ANIMATION_DURATION * 1000);
 
-            const weaponMesh = equippedWeaponRef.current ? handheldWeaponsRef.current[equippedWeaponRef.current as keyof HandheldWeapons] : null;
+            const weaponMesh = equippedWeaponRef.current && equippedWeaponRef.current !== 'health' && equippedWeaponRef.current !== 'invincibility' 
+                ? handheldWeaponsRef.current[equippedWeaponRef.current as Exclude<PowerUpType, 'health' | 'invincibility'>] 
+                : null;
 
             if (weaponMesh && weaponMesh.visible) { 
                 if (animProgress < 1) {
@@ -878,14 +899,23 @@ export default function ArenaDisplay() {
                     }
                 } else {
                     isAnimatingAttackRef.current = false;
-                    if (equippedWeaponRef.current && weaponMesh) { 
+                    if (equippedWeaponRef.current && weaponMesh && (equippedWeaponRef.current !== 'health' && equippedWeaponRef.current !== 'invincibility') ) { 
                          positionWeaponInHand(weaponMesh, equippedWeaponRef.current); 
                     }
                 }
             } else {
                  if (animProgress >= 1) isAnimatingAttackRef.current = false;
+                 if (!isAnimatingAttackRef.current && isPunchingRef.current){ // Reset punch anim flag if no weapon
+                    // Punching ref is reset by timeout, this ensures isAnimatingAttackRef also resets
+                 }
             }
+        } else if (isPunchingRef.current && !equippedWeaponRef.current) { // If punching with no weapon, ensure attack animation flag resets
+            const currentTime = performance.now();
+             if ((currentTime - attackAnimStartTimeRef.current) / 1000 > 0.1) { // Punch is very short
+                isAnimatingAttackRef.current = false;
+             }
         }
+
 
       }
       prevTime.current = time;
@@ -936,6 +966,9 @@ export default function ArenaDisplay() {
     return () => {
       cancelAnimationFrame(animationFrameId);
       clearInterval(cycleIntervalId);
+      if (invincibilityTimeoutRef.current) {
+        clearTimeout(invincibilityTimeoutRef.current);
+      }
       window.removeEventListener('resize', handleResize);
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keyup', onKeyUp);
@@ -1049,6 +1082,3 @@ export default function ArenaDisplay() {
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
-
-
-    
