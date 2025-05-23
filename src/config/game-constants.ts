@@ -15,3 +15,10 @@ export const MAX_AIR_JUMPS = 3; // Maximum number of jumps allowed in the air af
 // Player attack constants
 export const PLAYER_PUNCH_DAMAGE = 5;
 export const PLAYER_KICK_DAMAGE = 8;
+export const GUN1_DAMAGE = 15;
+export const GUN2_DAMAGE = 25;
+export const SWORD_DAMAGE = 12;
+
+// Power-up constants
+export const POWERUP_COLLECTION_DISTANCE = 1.5; // Distance within which player collects power-up
+export const POWERUP_GLOW_INTENSITY = 1.5;

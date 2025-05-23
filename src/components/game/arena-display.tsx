@@ -17,6 +17,11 @@ import {
     MAX_AIR_JUMPS,
     PLAYER_PUNCH_DAMAGE,
     PLAYER_KICK_DAMAGE,
+    GUN1_DAMAGE,
+    GUN2_DAMAGE,
+    SWORD_DAMAGE,
+    POWERUP_COLLECTION_DISTANCE,
+    POWERUP_GLOW_INTENSITY,
 } from '@/config/game-constants';
 
 interface DayNightPhase {
@@ -51,9 +56,11 @@ interface DayNightCycleState {
   };
 }
 
+type PowerUpType = 'gun1' | 'gun2' | 'sword';
 interface PowerUp {
     mesh: THREE.Mesh;
-    type: 'gun1' | 'gun2' | 'sword';
+    type: PowerUpType;
+    id: string; // Unique ID for each power-up instance
 }
 
 
@@ -115,8 +122,10 @@ export default function ArenaDisplay() {
   const isCrouching = useRef(false);
   const jumpsMadeInAirRef = useRef(0);
   const isTorchOnRef = useRef(false);
-  const isPunchingRef = useRef(false);
+  
+  const isPrimaryActionRef = useRef(false); // Renamed from isPunchingRef
   const isKickingRef = useRef(false);
+  const equippedWeaponRef = useRef<PowerUpType | null>(null);
 
 
   const direction = useRef(new THREE.Vector3());
@@ -250,17 +259,24 @@ export default function ArenaDisplay() {
 
   const onMouseDown = useCallback((event: MouseEvent) => {
     if (controlsRef.current?.isLocked && !isPaused.current) {
+      isPrimaryActionRef.current = true;
+      setTimeout(() => isPrimaryActionRef.current = false, 100);
+
       switch (event.button) {
         case 0: // Left mouse button
-          isPunchingRef.current = true;
-          console.log("Player Action: Punch (Conceptual)");
-          // navigator.vibrate(30); // Removed haptics
-          setTimeout(() => isPunchingRef.current = false, 100);
+          if (equippedWeaponRef.current === 'gun1') {
+            console.log("Player Action: Shoot Gun 1");
+          } else if (equippedWeaponRef.current === 'gun2') {
+            console.log("Player Action: Shoot Gun 2");
+          } else if (equippedWeaponRef.current === 'sword') {
+            console.log("Player Action: Swing Sword");
+          } else {
+            console.log("Player Action: Punch");
+          }
           break;
         case 2: // Right mouse button
-          isKickingRef.current = true;
-          console.log("Player Action: Kick (Conceptual)");
-          // navigator.vibrate(50); // Removed haptics
+          isKickingRef.current = true; // Keep separate for now, or integrate with primary action logic
+          console.log("Player Action: Kick");
           setTimeout(() => isKickingRef.current = false, 100);
           break;
       }
@@ -325,7 +341,7 @@ export default function ArenaDisplay() {
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
-    camera.position.set(0, PLAYER_NORMAL_HEIGHT, 5); // Set initial Y based on normal height
+    camera.position.set(0, PLAYER_NORMAL_HEIGHT, 5); 
     playerLastSurfaceY.current = 0;
     cameraRef.current = camera;
 
@@ -390,10 +406,10 @@ export default function ArenaDisplay() {
     spotLightRef.current = new THREE.SpotLight(0xffffff, 1.5, 70, Math.PI / 7, 0.3, 1.5);
     spotLightRef.current.visible = false;
     spotLightRef.current.position.set(0, 0, 0);
-    camera.add(spotLightRef.current);
+    camera.add(spotLightRef.current); // Add to camera
 
     spotLightTargetRef.current = new THREE.Object3D();
-    spotLightTargetRef.current.position.set(0, 0, -1);
+    spotLightTargetRef.current.position.set(0, 0, -1); // Target in front of camera
     camera.add(spotLightTargetRef.current);
     spotLightRef.current.target = spotLightTargetRef.current;
 
@@ -551,10 +567,10 @@ export default function ArenaDisplay() {
 
     // Power-up Placeholders
     const powerUpY = 0.5; // Height above ground
-    const powerUpDefinitions = [
-        { type: 'gun1', color: 0x0000ff, size: [0.5, 0.5, 0.5] }, // Blue cube
-        { type: 'gun2', color: 0x00ff00, size: [0.5, 0.5, 0.5] }, // Green cube
-        { type: 'sword', color: 0x808080, size: [0.2, 1.5, 0.2] }, // Grey thin box
+    const powerUpDefinitions: { type: PowerUpType; color: number; size: [number, number, number] }[] = [
+        { type: 'gun1', color: 0x0000ff, size: [0.5, 0.5, 0.5] }, 
+        { type: 'gun2', color: 0x00ff00, size: [0.5, 0.5, 0.5] }, 
+        { type: 'sword', color: 0x808080, size: [0.2, 1.5, 0.2] }, 
     ];
 
     const numZones = powerUpDefinitions.length;
@@ -565,17 +581,23 @@ export default function ArenaDisplay() {
         const zoneStartX = -halfGround + index * zoneWidth;
         const zoneEndX = zoneStartX + zoneWidth;
 
-        const x = THREE.MathUtils.randFloat(zoneStartX + 1, zoneEndX - 1); // Add padding from zone edges
-        const z = THREE.MathUtils.randFloat(-halfGround + 1, halfGround - 1); // Add padding from map edges
+        const x = THREE.MathUtils.randFloat(zoneStartX + 1, zoneEndX - 1); 
+        const z = THREE.MathUtils.randFloat(-halfGround + 1, halfGround - 1); 
 
         const geometry = new THREE.BoxGeometry(...def.size as [number, number, number]);
-        const material = new THREE.MeshStandardMaterial({ color: def.color, roughness: 0.5, metalness: 0.5 });
+        const material = new THREE.MeshStandardMaterial({ 
+            color: def.color, 
+            roughness: 0.5, 
+            metalness: 0.5,
+            emissive: def.color, // Make it glow with its own color
+            emissiveIntensity: POWERUP_GLOW_INTENSITY 
+        });
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(x, powerUpY + def.size[1] / 2, z);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         scene.add(mesh);
-        powerUpsRef.current.push({ mesh, type: def.type as 'gun1' | 'gun2' | 'sword' });
+        powerUpsRef.current.push({ mesh, type: def.type, id: `powerup-${def.type}-${index}` });
     });
 
 
@@ -602,7 +624,7 @@ export default function ArenaDisplay() {
         if (rendererRef.current && sceneRef.current && cameraRef.current) {
             rendererRef.current.render(sceneRef.current, cameraRef.current);
         }
-        prevTime.current = time - delta * 1000;
+        prevTime.current = time - delta * 1000; // Adjust prevTime to avoid large jump when unpausing
         return;
       }
 
@@ -611,24 +633,23 @@ export default function ArenaDisplay() {
       const physicsEyeOffset = isCrouching.current ? PLAYER_CROUCH_HEIGHT : PLAYER_NORMAL_HEIGHT;
       let visualEyeOffset = physicsEyeOffset;
 
-      if (isPunchingRef.current || isKickingRef.current) {
-        visualEyeOffset -= 0.05; // Visual dip for attack animation
+      if (isPrimaryActionRef.current || isKickingRef.current) { // Use isPrimaryActionRef for visual dip
+        visualEyeOffset -= 0.05; 
       }
 
 
       if (onGround.current) {
-        // Reset Y position to the surface height + visual offset to prevent sinking/floating
         player.position.y = playerLastSurfaceY.current + visualEyeOffset;
         verticalVelocity.current = 0;
 
         let stillSupported = false;
-        const playerFeetY = player.position.y - visualEyeOffset;
+        const playerFeetY = player.position.y - visualEyeOffset; 
 
-        if (Math.abs(playerFeetY - playerLastSurfaceY.current) < 0.01) { // Check against last known surface
+        if (Math.abs(playerFeetY - playerLastSurfaceY.current) < 0.01) { 
              stillSupported = true;
         } else {
           for (const building of buildingsRef.current) {
-             if (!building.geometry.parameters || building === ground) continue; // ground is handled separately if needed
+             if (!building.geometry.parameters || building === ground) continue; 
              const geomParams = building.geometry.parameters as any;
              const buildingHeight = geomParams.height;
              const buildingBaseY = building.position.y - buildingHeight / 2;
@@ -648,19 +669,16 @@ export default function ArenaDisplay() {
              }
            }
         }
-        // If no longer over any previously known or newly detected surface, start falling.
-        // A more robust check would raycast down, but this is simpler for now.
-        // The critical part is ensuring playerLastSurfaceY is updated when landing.
-        // Let's refine the "walked off edge" check:
+        
         let currentlyOverSupport = false;
-        // Check if over main ground
-        if (Math.abs(playerFeetY - 0) < 0.01 && // Close to Y=0
+        const playerCurrentFeetYForCheck = player.position.y - visualEyeOffset; // Use visual offset for consistency here
+
+        if (Math.abs(playerCurrentFeetYForCheck - 0) < 0.01 && 
             player.position.x >= -GROUND_SIZE/2 && player.position.x <= GROUND_SIZE/2 &&
             player.position.z >= -GROUND_SIZE/2 && player.position.z <= GROUND_SIZE/2) {
             currentlyOverSupport = true;
-            if (playerLastSurfaceY.current !== 0) playerLastSurfaceY.current = 0; // Update if was on building
+            if (playerLastSurfaceY.current !== 0) playerLastSurfaceY.current = 0; 
         } else {
-            // Check if over any building top
             for (const building of buildingsRef.current) {
                 if (!building.geometry.parameters || building === ground) continue;
                 const geomParams = building.geometry.parameters as any;
@@ -674,7 +692,7 @@ export default function ArenaDisplay() {
                 if (
                     player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
                     player.position.z >= building.position.z - halfDepth && player.position.z <= building.position.z + halfDepth &&
-                    Math.abs(playerFeetY - buildingTopActualY) < 0.05 // slightly larger tolerance for being "on"
+                    Math.abs(playerCurrentFeetYForCheck - buildingTopActualY) < 0.05 
                 ) {
                     currentlyOverSupport = true;
                     if (playerLastSurfaceY.current !== buildingTopActualY) playerLastSurfaceY.current = buildingTopActualY;
@@ -687,7 +705,7 @@ export default function ArenaDisplay() {
             onGround.current = false;
             jumpsMadeInAirRef.current = 0;
         } else {
-            player.position.y = playerLastSurfaceY.current + visualEyeOffset; // Ensure stable Y on ground
+            player.position.y = playerLastSurfaceY.current + visualEyeOffset; 
         }
       }
 
@@ -709,17 +727,17 @@ export default function ArenaDisplay() {
             const halfWidth = geomParams.width ? geomParams.width / 2 : (geomParams.radiusTop || 0);
             const halfDepth = geomParams.depth ? geomParams.depth / 2 : (geomParams.radiusTop || 0);
 
-            const playerCurrentFeetY = player.position.y - physicsEyeOffset;
+            const playerCurrentFeetY = player.position.y - physicsEyeOffset; 
             const playerPreviousFeetY = previousPlayerY - physicsEyeOffset;
 
 
             if (
               player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
               player.position.z >= building.position.z - halfDepth && player.position.z <= building.position.z + halfDepth &&
-              playerPreviousFeetY >= buildingTopActualY - 0.01 &&
-              playerCurrentFeetY <= buildingTopActualY + 0.05
+              playerPreviousFeetY >= buildingTopActualY - 0.01 && 
+              playerCurrentFeetY <= buildingTopActualY + 0.05 
             ) {
-              player.position.y = buildingTopActualY + visualEyeOffset; // Land with visual offset
+              player.position.y = buildingTopActualY + visualEyeOffset; 
               verticalVelocity.current = 0;
               onGround.current = true;
               jumpsMadeInAirRef.current = 0;
@@ -731,16 +749,16 @@ export default function ArenaDisplay() {
 
           const mainGroundTargetYVisual = visualEyeOffset;
           if (!landedOnObject && player.position.y <= mainGroundTargetYVisual ) {
-             const currentFeetY = player.position.y - visualEyeOffset;
-             const previousFeetY = previousPlayerY - visualEyeOffset;
+             const currentFeetY = player.position.y - visualEyeOffset; 
+             const previousFeetY = previousPlayerY - visualEyeOffset; 
 
-             if (previousFeetY >= 0 && currentFeetY <= 0 + 0.05) { // Landing on main ground (Y=0)
+             if (previousFeetY >= 0 && currentFeetY <= 0 + 0.05) { 
                 player.position.y = mainGroundTargetYVisual;
                 verticalVelocity.current = 0;
                 onGround.current = true;
                 jumpsMadeInAirRef.current = 0;
                 playerLastSurfaceY.current = 0;
-             } else if (player.position.y < mainGroundTargetYVisual) { // safety net if falling through
+             } else if (player.position.y < mainGroundTargetYVisual) { 
                 player.position.y = mainGroundTargetYVisual;
                 verticalVelocity.current = 0;
                 onGround.current = true;
@@ -771,15 +789,15 @@ export default function ArenaDisplay() {
 
         const originalPlayerPosition = player.position.clone();
 
-        const playerEyeHeightForCollision = physicsEyeOffset;
+        const playerEyeHeightForCollision = physicsEyeOffset; 
 
         const strafeAmount = -velocity.current.x * delta;
         if (Math.abs(strafeAmount) > 0.0001) {
             controlsRef.current.moveRight(strafeAmount);
             if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
                 player.position.x = originalPlayerPosition.x;
-                player.position.z = originalPlayerPosition.z;
-                player.position.y = originalPlayerPosition.y;
+                // player.position.z = originalPlayerPosition.z; // Only revert X for strafe collision
+                // player.position.y = originalPlayerPosition.y;
             }
         }
 
@@ -789,16 +807,43 @@ export default function ArenaDisplay() {
         if (Math.abs(forwardAmount) > 0.0001) {
             controlsRef.current.moveForward(forwardAmount);
             if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
-                player.position.x = positionAfterStrafe.x;
+                // player.position.x = positionAfterStrafe.x; // Only revert Z for forward collision
                 player.position.z = positionAfterStrafe.z;
-                player.position.y = positionAfterStrafe.y;
+                // player.position.y = positionAfterStrafe.y;
             }
         }
-
+        
+        // Final boundary clamping
         const halfGroundMinusRadius = GROUND_SIZE / 2 - PLAYER_COLLISION_RADIUS;
         player.position.x = Math.max(-halfGroundMinusRadius, Math.min(halfGroundMinusRadius, player.position.x));
         player.position.z = Math.max(-halfGroundMinusRadius, Math.min(halfGroundMinusRadius, player.position.z));
 
+
+        // Power-up collection logic
+        const playerPos = player.position;
+        for (let i = powerUpsRef.current.length - 1; i >= 0; i--) {
+            const powerUp = powerUpsRef.current[i];
+            if (powerUp.mesh.parent === sceneRef.current) { // Check if still in scene
+                const distanceToPowerUp = playerPos.distanceTo(powerUp.mesh.position);
+                if (distanceToPowerUp < POWERUP_COLLECTION_DISTANCE) {
+                    equippedWeaponRef.current = powerUp.type;
+                    console.log(`Collected ${powerUp.type}`);
+                    
+                    sceneRef.current?.remove(powerUp.mesh);
+                    // No need to dispose geometry/material if they might be reused or are shared
+                    // For unique power-ups, proper disposal would be:
+                    // powerUp.mesh.geometry.dispose();
+                    // if (Array.isArray(powerUp.mesh.material)) {
+                    // powerUp.mesh.material.forEach(m => m.dispose());
+                    // } else {
+                    // powerUp.mesh.material.dispose();
+                    // }
+                    
+                    powerUpsRef.current.splice(i, 1); // Remove from active power-ups
+                    break; // Collect one at a time
+                }
+            }
+        }
       }
       prevTime.current = time;
       if (rendererRef.current && sceneRef.current && cameraRef.current) {
@@ -892,10 +937,10 @@ export default function ArenaDisplay() {
             if (Array.isArray(powerUp.mesh.material)) {
                 powerUp.mesh.material.forEach(m => m.dispose());
             } else {
-                powerUp.mesh.material.dispose();
+                (powerUp.mesh.material as THREE.Material).dispose();
             }
         }
-        if(sceneRef.current) sceneRef.current.remove(powerUp.mesh);
+        if(sceneRef.current && powerUp.mesh.parent) sceneRef.current.remove(powerUp.mesh);
       });
       powerUpsRef.current = [];
 
