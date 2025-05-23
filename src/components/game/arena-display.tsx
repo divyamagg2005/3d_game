@@ -31,10 +31,10 @@ interface DayNightPhase {
 const dayNightCycleConfig = {
   cycleDuration: 120, // 120 seconds for a full cycle (2 minutes)
   phases: [
-    { name: 'Day', duration: 0.4, ambient: [0xffffff, 2.5], directional: [0xffffff, 3.0], background: 0x87CEEB, fog: 0x87CEEB }, // Super bright day
-    { name: 'Dusk', duration: 0.15, ambient: [0xffaa77, 0.3], directional: [0xffaa77, 0.4], background: 0x403050, fog: 0x403050 }, // Dimming dusk
-    { name: 'Night', duration: 0.3, ambient: [0x050510, 0.01], directional: [0x101020, 0.02], background: 0x000005, fog: 0x000005 }, // Very dark night
-    { name: 'Dawn', duration: 0.15, ambient: [0x88aabb, 0.2], directional: [0x88aabb, 0.3], background: 0x304060, fog: 0x304060 }, // Brightening dawn
+    { name: 'Day', duration: 0.4, ambient: [0xffffff, 2.5], directional: [0xffffff, 3.0], background: 0x87CEEB, fog: 0x87CEEB },
+    { name: 'Dusk', duration: 0.15, ambient: [0xffaa77, 0.3], directional: [0xffaa77, 0.4], background: 0x403050, fog: 0x403050 },
+    { name: 'Night', duration: 0.3, ambient: [0x050510, 0.01], directional: [0x101020, 0.02], background: 0x000005, fog: 0x000005 },
+    { name: 'Dawn', duration: 0.15, ambient: [0x88aabb, 0.2], directional: [0x88aabb, 0.3], background: 0x304060, fog: 0x304060 },
   ] as DayNightPhase[],
 };
 
@@ -66,13 +66,13 @@ function checkCollisionWithObjects(
     playerObject: THREE.Object3D, // camera object from controls
     obstacleMeshes: THREE.Mesh[],
     radius: number,
-    playerCurrentEyeHeight: number
+    playerPhysicsEyeHeight: number // Use physics eye height for collision
 ): boolean {
     const playerXZPos = playerObject.position;
 
     const playerColliderBox = new THREE.Box3(
-        new THREE.Vector3(playerXZPos.x - radius, playerObject.position.y - playerCurrentEyeHeight, playerXZPos.z - radius),
-        new THREE.Vector3(playerXZPos.x + radius, playerObject.position.y + 0.1, playerXZPos.z + radius) // Max Y is eye level + small headroom
+        new THREE.Vector3(playerXZPos.x - radius, playerObject.position.y - playerPhysicsEyeHeight, playerXZPos.z - radius),
+        new THREE.Vector3(playerXZPos.x + radius, playerObject.position.y + 0.1, playerXZPos.z + radius) 
     );
 
 
@@ -127,7 +127,6 @@ export default function ArenaDisplay() {
 
   const [dayNightCycle, setDayNightCycle] = useState<DayNightCycleState>(() => {
     const initialPhase = dayNightCycleConfig.phases[0];
-    playerLastSurfaceY.current = 0; 
     return {
       currentTime: 0,
       currentPhaseDetails: {
@@ -248,17 +247,11 @@ export default function ArenaDisplay() {
         case 0: // Left mouse button
           isPunchingRef.current = true;
           console.log("Player Action: Punch (Conceptual)");
-          if (navigator.vibrate) {
-            navigator.vibrate(30); // Short vibration for punch
-          }
           setTimeout(() => isPunchingRef.current = false, 100); 
           break;
         case 2: // Right mouse button
           isKickingRef.current = true;
           console.log("Player Action: Kick (Conceptual)");
-           if (navigator.vibrate) {
-            navigator.vibrate(50); // Slightly longer vibration for kick
-          }
           setTimeout(() => isKickingRef.current = false, 100); 
           break;
       }
@@ -323,8 +316,7 @@ export default function ArenaDisplay() {
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
-    const initialPlayerEyeHeight = PLAYER_NORMAL_HEIGHT;
-    camera.position.set(0, initialPlayerEyeHeight, 5);
+    camera.position.set(0, PLAYER_NORMAL_HEIGHT, 5); // Set initial Y based on normal height
     playerLastSurfaceY.current = 0; 
     cameraRef.current = camera;
 
@@ -356,14 +348,14 @@ export default function ArenaDisplay() {
 
     if (currentMount) {
       if (!controls.isLocked ) {
-        if (blockerElement) blockerElement.style.display = 'grid';
+        if (blockerElement) blockerEl.style.display = 'grid';
         if (instructionsElement) instructionsElement.style.display = '';
         if (isPaused.current) {
              if (pausedMessageElement) pausedMessageElement.style.display = 'block';
              if (instructionsElement) instructionsElement.style.display = 'none';
         }
       } else {
-        if (blockerElement) blockerElement.style.display = 'none';
+        if (blockerElement) blockerEl.style.display = 'none';
         if (instructionsElement) instructionsElement.style.display = 'none';
         if (pausedMessageElement) pausedMessageElement.style.display = 'none';
         isPaused.current = false;
@@ -577,15 +569,21 @@ export default function ArenaDisplay() {
       }
 
       const player = controlsRef.current.getObject();
-      const currentEyeOffset = isCrouching.current ? PLAYER_CROUCH_HEIGHT : PLAYER_NORMAL_HEIGHT;
+      
+      const physicsEyeOffset = isCrouching.current ? PLAYER_CROUCH_HEIGHT : PLAYER_NORMAL_HEIGHT;
+      let visualEyeOffset = physicsEyeOffset;
+
+      if (isPunchingRef.current || isKickingRef.current) {
+        visualEyeOffset -= 0.05; // Visual dip for attack animation
+      }
 
 
       if (onGround.current) {
-        player.position.y = playerLastSurfaceY.current + currentEyeOffset;
+        player.position.y = playerLastSurfaceY.current + visualEyeOffset; // Use visual offset for camera
         verticalVelocity.current = 0; 
 
         let stillSupported = false;
-        const playerFeetY = player.position.y - currentEyeOffset;
+        const playerFeetY = player.position.y - visualEyeOffset; // Use visual to derive feet for this check, but physics for actual height
 
         if (Math.abs(playerFeetY - 0) < 0.01) { 
              stillSupported = true;
@@ -604,7 +602,7 @@ export default function ArenaDisplay() {
             if (
               player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
               player.position.z >= building.position.z - halfDepth && player.position.z <= building.position.z + halfDepth &&
-              Math.abs(playerFeetY - buildingTopActualY) < 0.01
+              Math.abs(playerFeetY - buildingTopActualY) < 0.01 
             ) {
               stillSupported = true;
               playerLastSurfaceY.current = buildingTopActualY; 
@@ -635,9 +633,11 @@ export default function ArenaDisplay() {
 
             const halfWidth = geomParams.width ? geomParams.width / 2 : (geomParams.radiusTop || 0);
             const halfDepth = geomParams.depth ? geomParams.depth / 2 : (geomParams.radiusTop || 0);
+            
+            // When checking for landing, derive feet position from camera using physicsEyeOffset
+            const playerCurrentFeetY = player.position.y - physicsEyeOffset;
+            const playerPreviousFeetY = previousPlayerY - physicsEyeOffset;
 
-            const playerCurrentFeetY = player.position.y - currentEyeOffset;
-            const playerPreviousFeetY = previousPlayerY - currentEyeOffset;
 
             if (
               player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
@@ -645,7 +645,7 @@ export default function ArenaDisplay() {
               playerPreviousFeetY >= buildingTopActualY - 0.01 && 
               playerCurrentFeetY <= buildingTopActualY + 0.05 
             ) {
-              player.position.y = buildingTopActualY + currentEyeOffset;
+              player.position.y = buildingTopActualY + visualEyeOffset; // Land with visual offset
               verticalVelocity.current = 0;
               onGround.current = true;
               jumpsMadeInAirRef.current = 0;
@@ -654,11 +654,20 @@ export default function ArenaDisplay() {
               break;
             }
           }
+          
+          // Target Y on main ground using physics offset for landing calculation
+          const targetPlayerYOnMainGroundWithPhysics = physicsEyeOffset; 
+          if (!landedOnObject && player.position.y <= (playerLastSurfaceY.current + visualEyeOffset) ) { // Check against visual height for ground landing
+             const currentFeetY = player.position.y - visualEyeOffset; // Feet based on visual offset
+             const previousFeetY = previousPlayerY - visualEyeOffset;
 
-          const targetPlayerYOnMainGround = currentEyeOffset;
-          if (!landedOnObject && player.position.y <= targetPlayerYOnMainGround ) {
-             if (previousPlayerY >= targetPlayerYOnMainGround && player.position.y <= targetPlayerYOnMainGround + 0.05) {
-                player.position.y = targetPlayerYOnMainGround;
+             if (previousFeetY >= playerLastSurfaceY.current && currentFeetY <= playerLastSurfaceY.current + 0.05 && playerLastSurfaceY.current === 0) {
+                player.position.y = playerLastSurfaceY.current + visualEyeOffset; // Land with visual offset
+                verticalVelocity.current = 0;
+                onGround.current = true;
+                jumpsMadeInAirRef.current = 0;
+             } else if (player.position.y < visualEyeOffset && playerLastSurfaceY.current === 0) { // safety net if falling through
+                player.position.y = visualEyeOffset;
                 verticalVelocity.current = 0;
                 onGround.current = true;
                 jumpsMadeInAirRef.current = 0;
@@ -687,7 +696,9 @@ export default function ArenaDisplay() {
         if (moveLeft.current || moveRight.current) velocity.current.x -= direction.current.x * currentMoveSpeed * 10.0 * delta;
 
         const originalPlayerPosition = player.position.clone();
-        const playerEyeHeightForCollision = currentEyeOffset;
+        
+        // Use physicsEyeOffset for collision detection height
+        const playerEyeHeightForCollision = physicsEyeOffset;
 
         const strafeAmount = -velocity.current.x * delta;
         if (Math.abs(strafeAmount) > 0.0001) {
@@ -695,6 +706,8 @@ export default function ArenaDisplay() {
             if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
                 player.position.x = originalPlayerPosition.x;
                 player.position.z = originalPlayerPosition.z;
+                 // If collision, also restore Y, as moveRight/moveForward can affect it if looking up/down
+                player.position.y = originalPlayerPosition.y;
             }
         }
 
@@ -706,6 +719,7 @@ export default function ArenaDisplay() {
             if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
                 player.position.x = positionAfterStrafe.x;
                 player.position.z = positionAfterStrafe.z;
+                player.position.y = positionAfterStrafe.y;
             }
         }
 
