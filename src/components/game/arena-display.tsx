@@ -4,7 +4,17 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
-import { PLAYER_SPEED, PLAYER_SENSITIVITY, GROUND_SIZE } from '@/config/game-constants';
+import { 
+    PLAYER_SPEED, 
+    PLAYER_SENSITIVITY, 
+    GROUND_SIZE,
+    PLAYER_JUMP_FORCE,
+    GRAVITY,
+    PLAYER_RUN_MULTIPLIER,
+    PLAYER_NORMAL_HEIGHT,
+    PLAYER_CROUCH_HEIGHT,
+    PLAYER_CROUCH_SPEED_MULTIPLIER
+} from '@/config/game-constants';
 
 interface DayNightPhase {
   name: string;
@@ -18,10 +28,10 @@ interface DayNightPhase {
 const dayNightCycleConfig = {
   cycleDuration: 120, // 120 seconds for a full cycle (2 minutes)
   phases: [
-    { name: 'Day', duration: 0.4, ambient: [0xffffff, 1.8], directional: [0xffffff, 2.5], background: 0xCAEFFF, fog: 0xCAEFFF }, // Very bright day
-    { name: 'Dusk', duration: 0.15, ambient: [0xffaa77, 0.4], directional: [0xffaa77, 0.5], background: 0x403050, fog: 0x403050 }, // Warm, dimming
-    { name: 'Night', duration: 0.3, ambient: [0x101020, 0.02], directional: [0x151525, 0.05], background: 0x00000A, fog: 0x00000A }, // Very dark
-    { name: 'Dawn', duration: 0.15, ambient: [0x88aabb, 0.3], directional: [0x88aabb, 0.4], background: 0x304060, fog: 0x304060 }, // Cool, brightening
+    { name: 'Day', duration: 0.4, ambient: [0xffffff, 1.8], directional: [0xffffff, 2.5], background: 0xCAEFFF, fog: 0xCAEFFF },
+    { name: 'Dusk', duration: 0.15, ambient: [0xffaa77, 0.4], directional: [0xffaa77, 0.5], background: 0x403050, fog: 0x403050 },
+    { name: 'Night', duration: 0.3, ambient: [0x101020, 0.02], directional: [0x151525, 0.05], background: 0x00000A, fog: 0x00000A },
+    { name: 'Dawn', duration: 0.15, ambient: [0x88aabb, 0.3], directional: [0x88aabb, 0.4], background: 0x304060, fog: 0x304060 },
   ] as DayNightPhase[],
 };
 
@@ -45,36 +55,35 @@ function getInterpolatedFloat(val1: number, val2: number, factor: number): numbe
   return val1 + (val2 - val1) * factor;
 }
 
-const PLAYER_COLLISION_RADIUS = 0.4; // Half-width/depth of player's collision box
-const PLAYER_COLLISION_HEIGHT = 1.7; // Height of player's collision box
-
+const PLAYER_COLLISION_RADIUS = 0.4; 
 
 // Helper function for collision detection
 function checkCollisionWithObjects(
-    playerObject: THREE.Object3D,
+    playerObject: THREE.Object3D, // camera
     obstacleMeshes: THREE.Mesh[],
     radius: number,
-    playerHeight: number
+    playerCurrentHeight: number // This is PLAYER_NORMAL_HEIGHT or PLAYER_CROUCH_HEIGHT
 ): boolean {
-    const playerPos = playerObject.position;
-    // Player's collision box: from Y=0 (feet) to Y=playerHeight (head)
+    const playerXZPos = playerObject.position; // Use XZ from camera for collision checks
+
+    // Player's collision box: from Y=0 (feet on ground) to Y=playerCurrentHeight (eyes/head)
+    // This assumes the obstacles are also positioned relative to Y=0 ground.
     const playerColliderBox = new THREE.Box3(
-        new THREE.Vector3(playerPos.x - radius, 0, playerPos.z - radius),
-        new THREE.Vector3(playerPos.x + radius, playerHeight + 0.1, playerPos.z + radius) // Add 0.1 for a bit of headroom
+        new THREE.Vector3(playerXZPos.x - radius, 0, playerXZPos.z - radius), // Min Y is 0 (ground)
+        new THREE.Vector3(playerXZPos.x + radius, playerCurrentHeight + 0.1, playerXZPos.z + radius) // Max Y is player's current height + headroom
     );
 
     for (const obstacle of obstacleMeshes) {
         if (!obstacle.geometry.boundingBox) {
-            obstacle.geometry.computeBoundingBox(); // Ensure bounding box is computed
+            obstacle.geometry.computeBoundingBox();
         }
-        // It's crucial to get the world-space bounding box
         const obstacleBox = new THREE.Box3().copy(obstacle.geometry.boundingBox!).applyMatrix4(obstacle.matrixWorld);
 
         if (playerColliderBox.intersectsBox(obstacleBox)) {
-            return true; // Collision detected
+            return true; 
         }
     }
-    return false; // No collision
+    return false; 
 }
 
 
@@ -89,7 +98,13 @@ export default function ArenaDisplay() {
   const moveBackward = useRef(false);
   const moveLeft = useRef(false);
   const moveRight = useRef(false);
-  const velocity = useRef(new THREE.Vector3());
+  
+  const velocity = useRef(new THREE.Vector3()); // For XZ movement
+  const verticalVelocity = useRef(0); // For Y movement (jump/gravity)
+  const onGround = useRef(true);
+  const isRunning = useRef(false);
+  const isCrouching = useRef(false);
+
   const direction = useRef(new THREE.Vector3());
   const prevTime = useRef(performance.now());
   const isPaused = useRef(false);
@@ -132,6 +147,23 @@ export default function ArenaDisplay() {
       case 'ArrowRight':
       case 'KeyD':
         moveRight.current = true;
+        break;
+      case 'Space':
+        if (onGround.current && !isPaused.current && controlsRef.current?.isLocked) {
+          verticalVelocity.current = PLAYER_JUMP_FORCE;
+          onGround.current = false;
+        }
+        break;
+      case 'ShiftLeft':
+      case 'ShiftRight':
+        isRunning.current = true;
+        break;
+      case 'ControlLeft':
+      case 'KeyC':
+         if (!isPaused.current && controlsRef.current?.isLocked) {
+            isCrouching.current = !isCrouching.current;
+            // Camera height adjustment will happen in animate loop based on onGround state
+         }
         break;
       case 'KeyP': {
         isPaused.current = !isPaused.current;
@@ -179,6 +211,10 @@ export default function ArenaDisplay() {
       case 'KeyD':
         moveRight.current = false;
         break;
+      case 'ShiftLeft':
+      case 'ShiftRight':
+        isRunning.current = false;
+        break;
     }
   }, []);
 
@@ -225,7 +261,7 @@ export default function ArenaDisplay() {
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
-    camera.position.set(0, PLAYER_COLLISION_HEIGHT, 5); 
+    camera.position.set(0, PLAYER_NORMAL_HEIGHT, 5); 
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -238,7 +274,7 @@ export default function ArenaDisplay() {
 
     const controls = new PointerLockControls(camera, renderer.domElement);
     controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002; 
-    scene.add(controls.getObject());
+    scene.add(controls.getObject()); // Camera is the object moved by PointerLockControls
     controlsRef.current = controls;
     
     const instructionsElement = document.getElementById('instructions');
@@ -287,14 +323,13 @@ export default function ArenaDisplay() {
     const textureLoader = new THREE.TextureLoader();
     const textureLoadError = (textureName: string) => (event: ErrorEvent | Event) => {
       console.error(`ArenaDisplay: Texture loading failed for '${textureName}'. Attempted path: /textures/${textureName}`);
-      if (event && 'message' in event) { 
-        const errorEvent = event as ErrorEvent;
+      if (event && 'message' in event && event instanceof ErrorEvent) { 
         console.error('ErrorEvent details:', {
-          message: errorEvent.message,
-          filename: errorEvent.filename,
-          lineno: errorEvent.lineno,
-          colno: errorEvent.colno,
-          errorObject: errorEvent.error,
+          message: event.message,
+          filename: event.filename,
+          lineno: event.lineno,
+          colno: event.colno,
+          errorObject: event.error,
         });
       } else if (event && event.target instanceof Image) {
         console.error('Image load error on target. src:', (event.target as HTMLImageElement).src);
@@ -357,30 +392,30 @@ export default function ArenaDisplay() {
     
     const wallN = new THREE.Mesh(new THREE.BoxGeometry(GROUND_SIZE + wallThickness * 2, wallHeight, wallThickness), boundaryWallMaterial);
     wallN.position.set(0, wallHeight/2, -GROUND_SIZE/2 - wallThickness/2);
-    wallN.castShadow = true; wallN.receiveShadow = true; scene.add(wallN);
+    wallN.castShadow = true; wallN.receiveShadow = true; scene.add(wallN); buildingsRef.current.push(wallN);
     
     const wallS = new THREE.Mesh(new THREE.BoxGeometry(GROUND_SIZE + wallThickness * 2, wallHeight, wallThickness), boundaryWallMaterial);
     wallS.position.set(0, wallHeight/2, GROUND_SIZE/2 + wallThickness/2);
-    wallS.castShadow = true; wallS.receiveShadow = true; scene.add(wallS);
+    wallS.castShadow = true; wallS.receiveShadow = true; scene.add(wallS); buildingsRef.current.push(wallS);
 
     const wallE = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, GROUND_SIZE), boundaryWallMaterial);
     wallE.position.set(GROUND_SIZE/2 + wallThickness/2, wallHeight/2, 0);
-    wallE.castShadow = true; wallE.receiveShadow = true; scene.add(wallE);
+    wallE.castShadow = true; wallE.receiveShadow = true; scene.add(wallE); buildingsRef.current.push(wallE);
 
     const wallW = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, GROUND_SIZE), boundaryWallMaterial);
     wallW.position.set(-GROUND_SIZE/2 - wallThickness/2, wallHeight/2, 0);
-    wallW.castShadow = true; wallW.receiveShadow = true; scene.add(wallW);
+    wallW.castShadow = true; wallW.receiveShadow = true; scene.add(wallW); buildingsRef.current.push(wallW);
 
     const buildingOffset = GROUND_SIZE / 4; 
-    buildingsRef.current = []; // Clear previous buildings
+    // buildingsRef.current = []; // Already initialized empty
 
     const addBuilding = (geometry: THREE.BufferGeometry, materials: THREE.Material | THREE.Material[], x: number, y: number, z: number) => {
       const building = new THREE.Mesh(geometry, materials);
-      building.position.set(x, y, z);
+      building.position.set(x, y, z); // Y is the center of the building
       building.castShadow = true;
       building.receiveShadow = true;
       scene.add(building);
-      buildingsRef.current.push(building); // Add to ref
+      buildingsRef.current.push(building); 
     };
     
     // Residential Area
@@ -407,10 +442,10 @@ export default function ArenaDisplay() {
     // Industrial Sector
     addBuilding(new THREE.BoxGeometry(15, 6, 10), industrialMaterials, -buildingOffset + 5, 3, buildingOffset);
     const factory = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 8), industrialMaterials);
-    factory.position.set(-buildingOffset - 10, 4, buildingOffset + 12);
+    factory.position.set(-buildingOffset - 10, 4, buildingOffset + 12); // Y is center
     factory.castShadow = true; factory.receiveShadow = true; scene.add(factory); buildingsRef.current.push(factory);
     const factorySmokestack = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 18, 16), smokestackMaterial); 
-    factorySmokestack.position.set(-buildingOffset - 13.5, 9 + 1.5, buildingOffset + 14); 
+    factorySmokestack.position.set(-buildingOffset - 13.5, 9, buildingOffset + 14); // Y is center of cylinder (base at Y=0)
     factorySmokestack.castShadow = true; factorySmokestack.receiveShadow = true; scene.add(factorySmokestack); buildingsRef.current.push(factorySmokestack);
     addBuilding(new THREE.BoxGeometry(12, 7, 9), industrialMaterials, -buildingOffset - 20, 3.5, buildingOffset - 5);
     addBuilding(new THREE.BoxGeometry(18, 5, 12), industrialMaterials, -buildingOffset + 20, 2.5, buildingOffset + 20);
@@ -430,13 +465,13 @@ export default function ArenaDisplay() {
     // Smaller obstacles for hide and seek
     const obstacleMaterials = [residentialMaterials, commercialMaterials, industrialMaterials, downtownMaterials];
     for (let i = 0; i < 50; i++) {
-        const sizeX = Math.random() * 2 + 1; // 1 to 3
-        const sizeY = Math.random() * 3 + 1; // 1 to 4
-        const sizeZ = Math.random() * 2 + 1; // 1 to 3
+        const sizeX = Math.random() * 2 + 1; 
+        const sizeY = Math.random() * 3 + 1; 
+        const sizeZ = Math.random() * 2 + 1; 
         const posX = (Math.random() - 0.5) * (GROUND_SIZE - sizeX);
         const posZ = (Math.random() - 0.5) * (GROUND_SIZE - sizeZ);
         const matIndex = Math.floor(Math.random() * obstacleMaterials.length);
-        addBuilding(new THREE.BoxGeometry(sizeX, sizeY, sizeZ), obstacleMaterials[matIndex], posX, sizeY / 2, posZ);
+        addBuilding(new THREE.BoxGeometry(sizeX, sizeY, sizeZ), obstacleMaterials[matIndex], posX, sizeY / 2, posZ); // Y is sizeY / 2 for base on ground
     }
 
 
@@ -458,7 +493,7 @@ export default function ArenaDisplay() {
       const time = performance.now();
       const delta = (time - prevTime.current) / 1000;
       
-      if (isPaused.current) {
+      if (isPaused.current || !controlsRef.current || !cameraRef.current) {
         if (rendererRef.current && sceneRef.current && cameraRef.current) {
             rendererRef.current.render(sceneRef.current, cameraRef.current);
         }
@@ -466,49 +501,76 @@ export default function ArenaDisplay() {
         return;
       }
       
-      if (controlsRef.current?.isLocked === true) {
-        const player = controlsRef.current.getObject();
+      const player = controlsRef.current.getObject(); // This is the camera
+      const effectivePlayerHeight = isCrouching.current ? PLAYER_CROUCH_HEIGHT : PLAYER_NORMAL_HEIGHT;
 
-        // Update velocity (damping and acceleration)
+      // Apply gravity if not on ground
+      if (!onGround.current) {
+        verticalVelocity.current -= GRAVITY * delta;
+        player.position.y += verticalVelocity.current * delta;
+      }
+
+      // Ground check and crouch height adjustment
+      if (player.position.y < effectivePlayerHeight) {
+        player.position.y = effectivePlayerHeight;
+        verticalVelocity.current = 0;
+        onGround.current = true;
+      } else if (player.position.y > effectivePlayerHeight && onGround.current && verticalVelocity.current === 0) {
+        // If somehow onGround is true but player is above designated height (e.g. after uncrouching on a slope)
+        // This case might need more robust slope handling in future, for now, snap to height
+        player.position.y = effectivePlayerHeight;
+      }
+
+
+      if (controlsRef.current.isLocked === true) {
         velocity.current.x -= velocity.current.x * 10.0 * delta;
         velocity.current.z -= velocity.current.z * 10.0 * delta;
 
         direction.current.z = Number(moveForward.current) - Number(moveBackward.current);
         direction.current.x = Number(moveRight.current) - Number(moveLeft.current);
-        direction.current.normalize(); // Prevents faster diagonal movement
+        direction.current.normalize();
 
-        if (moveForward.current || moveBackward.current) velocity.current.z -= direction.current.z * PLAYER_SPEED * 10.0 * delta;
-        if (moveLeft.current || moveRight.current) velocity.current.x -= direction.current.x * PLAYER_SPEED * 10.0 * delta;
+        let currentMoveSpeed = PLAYER_SPEED;
+        if (isRunning.current && !isCrouching.current && onGround.current) { // Can only run if on ground and not crouching
+            currentMoveSpeed *= PLAYER_RUN_MULTIPLIER;
+        } else if (isCrouching.current && onGround.current) { // Crouch speed modification only on ground
+            currentMoveSpeed *= PLAYER_CROUCH_SPEED_MULTIPLIER;
+        }
+        
+        if (moveForward.current || moveBackward.current) velocity.current.z -= direction.current.z * currentMoveSpeed * 10.0 * delta;
+        if (moveLeft.current || moveRight.current) velocity.current.x -= direction.current.x * currentMoveSpeed * 10.0 * delta;
         
         const originalPlayerPosition = player.position.clone();
 
-        // Attempt strafe movement
         const strafeAmount = -velocity.current.x * delta;
         if (Math.abs(strafeAmount) > 0.0001) {
             controlsRef.current.moveRight(strafeAmount);
-            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, PLAYER_COLLISION_HEIGHT)) {
-                player.position.copy(originalPlayerPosition); // Revert X component by restoring original pos
+            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, effectivePlayerHeight)) {
+                player.position.x = originalPlayerPosition.x; // Revert X component
+                // player.position.y = originalPlayerPosition.y; // Keep Y from gravity/jump
+                player.position.z = originalPlayerPosition.z; // Keep Z original before this move
             }
         }
 
-        // Update originalPlayerPosition for forward movement check (takes into account successful or reverted strafe)
         const positionAfterStrafe = player.position.clone();
 
-        // Attempt forward/backward movement
         const forwardAmount = -velocity.current.z * delta;
         if (Math.abs(forwardAmount) > 0.0001) {
             controlsRef.current.moveForward(forwardAmount);
-            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, PLAYER_COLLISION_HEIGHT)) {
-                player.position.copy(positionAfterStrafe); // Revert Z component
+            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, effectivePlayerHeight)) {
+                player.position.x = positionAfterStrafe.x; // Keep X from strafe result
+                // player.position.y = positionAfterStrafe.y; // Keep Y from gravity/jump
+                player.position.z = positionAfterStrafe.z; // Revert Z component
             }
         }
 
-        // Boundary checks (outer walls)
-        const camPos = player.position;
-        const halfGroundMinusWall = GROUND_SIZE / 2 - wallThickness / 2 - PLAYER_COLLISION_RADIUS; 
-        camPos.x = Math.max(-halfGroundMinusWall, Math.min(halfGroundMinusWall, camPos.x));
-        camPos.z = Math.max(-halfGroundMinusWall, Math.min(halfGroundMinusWall, camPos.z));
-        camPos.y = PLAYER_COLLISION_HEIGHT; 
+        // Boundary checks (outer walls are also in buildingsRef.current now, so general collision handles them)
+        // Player XZ position cannot go beyond GROUND_SIZE/2 - PLAYER_COLLISION_RADIUS
+        const halfGroundMinusRadius = GROUND_SIZE / 2 - PLAYER_COLLISION_RADIUS;
+        player.position.x = Math.max(-halfGroundMinusRadius, Math.min(halfGroundMinusRadius, player.position.x));
+        player.position.z = Math.max(-halfGroundMinusRadius, Math.min(halfGroundMinusRadius, player.position.z));
+        
+        // Y position is managed by gravity and ground check, no explicit boundary clamp here for Y
       }
       prevTime.current = time;
       if (rendererRef.current && sceneRef.current && cameraRef.current) {
@@ -597,10 +659,10 @@ export default function ArenaDisplay() {
                     if (object.geometry) object.geometry.dispose();
                 }
              });
-             buildingsRef.current.forEach(building => { // Use ref here
+             buildingsRef.current.forEach(building => { 
                 if(building.geometry) building.geometry.dispose();
              });
-             buildingsRef.current = []; // Clear ref
+             buildingsRef.current = []; 
          }
       }
       
@@ -615,7 +677,8 @@ export default function ArenaDisplay() {
       ambientLightRef.current = null;
       directionalLightRef.current = null;
     };
-  }, [onKeyDown, onKeyUp, clickToLockHandler, onLockHandler, onUnlockHandler]); 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);  // Keep onKeyDown, onKeyUp, etc. out of deps for now to avoid re-binding issues, manage them carefully
 
   useEffect(() => {
     if (sceneRef.current && ambientLightRef.current && directionalLightRef.current) {
@@ -631,5 +694,3 @@ export default function ArenaDisplay() {
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
-
-
