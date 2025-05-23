@@ -31,18 +31,21 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 max-w-screen-2xl items-center">
-          <Link href="/" className="mr-6 flex items-center space-x-2">
-            <GameLogo className="h-8 w-8 text-primary" />
-            <span className="font-bold text-xl sm:inline-block text-primary hover:text-accent transition-colors">
-              WebGladiator
-            </span>
-          </Link>
-          {/* Navigation can be added here */}
-        </div>
-      </header>
-      <main className="flex-grow relative flex flex-row">
+      {!isInFullscreen && (
+        <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container flex h-16 max-w-screen-2xl items-center">
+            <Link href="/" className="mr-6 flex items-center space-x-2">
+              <GameLogo className="h-8 w-8 text-primary" />
+              <span className="font-bold text-xl sm:inline-block text-primary hover:text-accent transition-colors">
+                WebGladiator
+              </span>
+            </Link>
+            {/* Navigation can be added here */}
+          </div>
+        </header>
+      )}
+
+      <main className={`relative ${isInFullscreen ? 'flex-1' : 'flex-grow flex flex-row'}`}>
         {/* Left Ad Space */}
         {!isInFullscreen && (
           <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-r border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
@@ -54,7 +57,13 @@ export default function MainLayout({ children }: MainLayoutProps) {
         )}
 
         {/* Game Content Area */}
-        <div className={`${isInFullscreen ? 'w-full h-full fixed inset-0 z-[60] flex flex-col' : 'flex-grow flex flex-col overflow-hidden'}`}>
+        <div
+          className={`${
+            isInFullscreen
+              ? 'w-full h-full fixed inset-0 z-[60] flex flex-col bg-background' // Ensure bg-background for fullscreen
+              : 'flex-grow flex flex-col overflow-hidden'
+          }`}
+        >
           {children}
         </div>
 
