@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Heart, Timer, CheckSquare, Shield } from 'lucide-react';
+import { Heart, Timer, CheckSquare, Shield, MapPin } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useState, useEffect } from 'react';
@@ -89,16 +89,28 @@ export default function PlayerStatsDisplay() {
       </Card>
 
       {/* Placeholder for Minimap */}
-      <Card className="bg-card/80 backdrop-blur-sm border-border shadow-lg h-40">
+      <Card className="bg-card/80 backdrop-blur-sm border-border shadow-lg">
         <CardHeader className="p-3">
           <CardTitle className="text-lg flex items-center text-primary-foreground">
             Minimap
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-3 pt-0 flex items-center justify-center h-full">
-          <p className="text-sm text-muted-foreground">[Minimap Area]</p>
+        <CardContent className="p-3 pt-0 flex items-center justify-center aspect-square">
+          {/* This is a visual placeholder for the minimap */}
+          <div className="w-full h-full bg-muted/50 rounded-md flex items-center justify-center relative overflow-hidden border border-border">
+            {/* Player Icon Placeholder */}
+            <MapPin className="h-6 w-6 text-accent z-10" />
+            {/* Conceptual map elements (static placeholders) */}
+            <div className="absolute top-1/4 left-1/4 w-3 h-3 bg-primary/30 rounded-sm opacity-75"></div>
+            <div className="absolute bottom-1/3 right-1/4 w-2 h-4 bg-primary/30 opacity-75 transform rotate-45"></div>
+            <div className="absolute top-1/2 right-1/3 w-4 h-2 bg-secondary/30 opacity-75"></div>
+            <div className="absolute top-1/3 left-1/2 w-2 h-5 bg-primary/30 opacity-75 transform -rotate-30"></div>
+            <p className="absolute bottom-2 text-xs text-muted-foreground">[Limited Top View Area]</p>
+          </div>
         </CardContent>
       </Card>
     </div>
   );
 }
+
+    
