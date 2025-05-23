@@ -39,10 +39,10 @@ interface DayNightPhase {
 const dayNightCycleConfig = {
   cycleDuration: 120, // Total cycle in seconds
   phases: [
-    { name: 'Day', duration: 0.4, ambient: [0xffffff, 2.5], directional: [0xffffff, 3.0], background: 0x88ccff, fog: 0x88ccff },
-    { name: 'Dusk', duration: 0.15, ambient: [0xffaa77, 0.3], directional: [0xffaa77, 0.4], background: 0x403050, fog: 0x403050 },
-    { name: 'Night', duration: 0.3, ambient: [0x0a0a1a, 0.005], directional: [0x101020, 0.01], background: 0x000005, fog: 0x000005 },
-    { name: 'Dawn', duration: 0.15, ambient: [0x88aabb, 0.2], directional: [0x88aabb, 0.3], background: 0x304060, fog: 0x304060 },
+    { name: 'Day', duration: 0.4, ambient: [0xffffff, 2.8], directional: [0xffffff, 3.5], background: 0x99ddff, fog: 0x99ddff },
+    { name: 'Dusk', duration: 0.15, ambient: [0xffccaa, 0.4], directional: [0xffccaa, 0.5], background: 0x504060, fog: 0x504060 },
+    { name: 'Night', duration: 0.3, ambient: [0x1a1a2a, 0.05], directional: [0x202030, 0.02], background: 0x050508, fog: 0x050508 },
+    { name: 'Dawn', duration: 0.15, ambient: [0xaaccff, 0.3], directional: [0xaaccff, 0.4], background: 0x405070, fog: 0x405070 },
   ] as DayNightPhase[],
 };
 
@@ -61,9 +61,9 @@ interface DayNightCycleState {
 
 type PowerUpType = 'gun1' | 'gun2' | 'sword' | 'health' | 'invincibility';
 interface WorldPowerUp {
-    mesh: THREE.Mesh; 
+    mesh: THREE.Mesh;
     type: PowerUpType;
-    id: string; 
+    id: string;
     collected: boolean;
 }
 
@@ -74,6 +74,7 @@ interface HandheldWeapons {
 }
 
 const ATTACK_ANIMATION_DURATION = 0.2; // seconds
+const COLLISION_EXPANSION_SCALAR = 0.01; // Tiny amount to expand obstacle boxes for collision
 
 function getInterpolatedColor(color1: THREE.Color, color2: THREE.Color, factor: number): THREE.Color {
   return new THREE.Color().lerpColors(color1, color2, factor);
@@ -86,16 +87,16 @@ function getInterpolatedFloat(val1: number, val2: number, factor: number): numbe
 const PLAYER_COLLISION_RADIUS = 0.4;
 
 function checkCollisionWithObjects(
-    playerObject: THREE.Object3D, 
+    playerObject: THREE.Object3D,
     obstacleMeshes: THREE.Mesh[],
     radius: number,
-    playerPhysicsEyeHeight: number 
+    playerPhysicsEyeHeight: number
 ): boolean {
     const playerXZPos = playerObject.position;
 
     const playerColliderBox = new THREE.Box3(
         new THREE.Vector3(playerXZPos.x - radius, playerObject.position.y - playerPhysicsEyeHeight, playerXZPos.z - radius),
-        new THREE.Vector3(playerXZPos.x + radius, playerObject.position.y + 0.1, playerXZPos.z + radius) // Small height for the box
+        new THREE.Vector3(playerXZPos.x + radius, playerObject.position.y + 0.1, playerXZPos.z + radius)
     );
 
 
@@ -103,9 +104,14 @@ function checkCollisionWithObjects(
         if (!obstacle.geometry.boundingBox) {
             obstacle.geometry.computeBoundingBox();
         }
+        // It's crucial that boundingBox is not null here.
+        // If computeBoundingBox() doesn't create it (e.g., for an empty geometry), this could fail.
+        // However, for BoxGeometry and CylinderGeometry, it should be fine.
         const obstacleBox = new THREE.Box3().copy(obstacle.geometry.boundingBox!).applyMatrix4(obstacle.matrixWorld);
+        
+        const slightlyExpandedObstacleBox = obstacleBox.clone().expandByScalar(COLLISION_EXPANSION_SCALAR);
 
-        if (playerColliderBox.intersectsBox(obstacleBox)) {
+        if (playerColliderBox.intersectsBox(slightlyExpandedObstacleBox)) {
             return true;
         }
     }
@@ -132,13 +138,13 @@ export default function ArenaDisplay() {
   const isCrouching = useRef(false);
   const jumpsMadeInAirRef = useRef(0);
   const isTorchOnRef = useRef(false);
-  
+
   const isPunchingRef = useRef(false);
   const isKickingRef = useRef(false);
-  const equippedWeaponRef = useRef<PowerUpType | null>(null); 
+  const equippedWeaponRef = useRef<Exclude<PowerUpType, 'health' | 'invincibility'> | null>(null);
   const worldPowerUpsRef = useRef<WorldPowerUp[]>([]);
   const handheldWeaponsRef = useRef<HandheldWeapons>({ sword: null, gun1: null, gun2: null });
-  
+
   const isAnimatingAttackRef = useRef(false);
   const attackAnimStartTimeRef = useRef(0);
 
@@ -178,17 +184,17 @@ export default function ArenaDisplay() {
   const takePlayerDamage = useCallback((amount: number) => {
     if (isInvincibleRef.current) {
         console.log("Player is invincible, no damage taken.");
-        return; 
+        return;
     }
-    if (!playerHealthRef.current) return;
-    
+    if (!playerHealthRef.current) return; // Should not happen if initialized
+
     let newHealth = playerHealthRef.current - amount;
     if (newHealth < 0) {
       newHealth = 0;
       // TODO: Implement game over logic
     }
     playerHealthRef.current = newHealth;
-    setCurrentHealth(newHealth); 
+    setCurrentHealth(newHealth);
     console.log(`Player took ${amount} damage. Current health: ${playerHealthRef.current}`);
   }, [setCurrentHealth]);
 
@@ -238,7 +244,7 @@ export default function ArenaDisplay() {
             spotLightRef.current.visible = isTorchOnRef.current;
         }
         break;
-      case 'KeyL': 
+      case 'KeyL':
         if (!isPaused.current && controlsRef.current?.isLocked) {
             takePlayerDamage(10);
         }
@@ -271,7 +277,7 @@ export default function ArenaDisplay() {
         break;
       }
     }
-  }, [takePlayerDamage]); 
+  }, [takePlayerDamage]);
 
   const onKeyUp = useCallback((event: KeyboardEvent) => {
     switch (event.code) {
@@ -305,7 +311,7 @@ export default function ArenaDisplay() {
 
       switch (event.button) {
         case 0: // Left mouse button
-          isPunchingRef.current = true; 
+          isPunchingRef.current = true;
           setTimeout(() => { isPunchingRef.current = false; }, 100);
 
           if (equippedWeaponRef.current === 'gun1') {
@@ -314,15 +320,15 @@ export default function ArenaDisplay() {
             console.log("Player Action: Shoot Gun 2 - Damage:", GUN2_DAMAGE);
           } else if (equippedWeaponRef.current === 'sword') {
             console.log("Player Action: Swing Sword - Damage:", SWORD_DAMAGE);
-          } else { 
+          } else {
             console.log("Player Action: Punch - Damage:", PLAYER_PUNCH_DAMAGE);
           }
           break;
         case 2: // Right mouse button
-          isKickingRef.current = true; 
+          isKickingRef.current = true;
           setTimeout(() => isKickingRef.current = false, 100);
           console.log("Player Action: Kick - Damage:", PLAYER_KICK_DAMAGE);
-          isAnimatingAttackRef.current = false; 
+          isAnimatingAttackRef.current = false; // Kick animation is simpler for now
           break;
         default:
             isAnimatingAttackRef.current = false;
@@ -331,14 +337,14 @@ export default function ArenaDisplay() {
     }
   }, []);
 
-  const positionWeaponInHand = (weaponMesh: THREE.Mesh, type: PowerUpType) => {
+  const positionWeaponInHand = (weaponMesh: THREE.Mesh, type: Exclude<PowerUpType, 'health' | 'invincibility'>) => {
     if (!cameraRef.current) return;
     if (type === 'sword') {
-        weaponMesh.position.set(0.35, -0.3, -0.5); 
-        weaponMesh.rotation.set(0, -Math.PI / 2 - 0.2, 0); 
+        weaponMesh.position.set(0.35, -0.3, -0.5);
+        weaponMesh.rotation.set(0, -Math.PI / 2 - 0.2, 0);
     } else if (type === 'gun1' || type === 'gun2') {
-        weaponMesh.position.set(0.3, -0.25, -0.4); 
-        weaponMesh.rotation.set(0, -Math.PI / 2, 0); 
+        weaponMesh.position.set(0.3, -0.25, -0.4);
+        weaponMesh.rotation.set(0, -Math.PI / 2, 0);
     }
   };
 
@@ -348,20 +354,22 @@ export default function ArenaDisplay() {
     const pausedMessageEl = document.getElementById('paused-message');
 
     if (!isPaused.current && controlsRef.current && !controlsRef.current.isLocked) {
-      if (rendererRef.current && rendererRef.current.domElement) {
-          rendererRef.current.domElement.focus(); 
-      }
-      if (typeof controlsRef.current.domElement.requestPointerLock === 'function') {
-        controlsRef.current.lock();
-      } else {
-        console.error('ArenaDisplay: requestPointerLock API is not a function on domElement. Pointer lock cannot be initiated.');
-        if (instructionsEl) instructionsEl.style.display = 'none';
-        if (blockerEl) blockerEl.style.display = 'none';
-        if (pausedMessageEl) pausedMessageEl.style.display = 'none';
-        isPaused.current = false; 
-      }
+        if (rendererRef.current && rendererRef.current.domElement) {
+            rendererRef.current.domElement.focus();
+        }
+        if (typeof controlsRef.current.domElement.requestPointerLock === 'function') {
+            controlsRef.current.lock();
+        } else {
+            console.error('ArenaDisplay: requestPointerLock API is not available or not a function on domElement.');
+            // Fallback for environments where pointer lock might fail or isn't desired (e.g. Studio preview)
+            if (instructionsEl) instructionsEl.style.display = 'none';
+            if (blockerEl) blockerEl.style.display = 'none';
+            if (pausedMessageEl) pausedMessageEl.style.display = 'none';
+            isPaused.current = false;
+        }
     }
-  }, []);
+}, []);
+
 
   const onLockHandler = useCallback(() => {
     const instructionsEl = document.getElementById('instructions');
@@ -372,7 +380,7 @@ export default function ArenaDisplay() {
     if (blockerEl) blockerEl.style.display = 'none';
     if (pausedMessageEl) pausedMessageEl.style.display = 'none';
 
-    isPaused.current = false; 
+    isPaused.current = false;
   }, []);
 
   const onUnlockHandler = useCallback(() => {
@@ -380,7 +388,7 @@ export default function ArenaDisplay() {
     const blockerEl = document.getElementById('blocker');
     const pausedMessageEl = document.getElementById('paused-message');
 
-    if (blockerEl) blockerEl.style.display = 'grid'; 
+    if (blockerEl) blockerEl.style.display = 'grid';
 
     if (isPaused.current) {
       if (pausedMessageEl) pausedMessageEl.style.display = 'block';
@@ -400,8 +408,8 @@ export default function ArenaDisplay() {
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
-    camera.position.set(0, PLAYER_NORMAL_HEIGHT, 5); 
-    playerLastSurfaceY.current = 0; 
+    camera.position.set(0, PLAYER_NORMAL_HEIGHT, 5);
+    playerLastSurfaceY.current = 0;
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -409,15 +417,14 @@ export default function ArenaDisplay() {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.domElement.tabIndex = -1; 
+    renderer.domElement.tabIndex = -1; // Make canvas focusable
     currentMount.appendChild(renderer.domElement);
     rendererRef.current = renderer;
-    rendererRef.current.domElement.focus();
 
 
     const controls = new PointerLockControls(camera, renderer.domElement);
-    controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002; 
-    scene.add(controls.getObject()); 
+    controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002;
+    scene.add(controls.getObject());
     controlsRef.current = controls;
 
     const instructionsElement = document.getElementById('instructions');
@@ -433,14 +440,14 @@ export default function ArenaDisplay() {
     if (pausedMessageElement) pausedMessageElement.style.display = 'none';
 
     if (currentMount) {
-      if (controlsRef.current && !controlsRef.current.isLocked ) { 
+      if (controlsRef.current && !controlsRef.current.isLocked ) {
         if (blockerElement) blockerElement.style.display = 'grid';
         if (instructionsElement) instructionsElement.style.display = '';
-        if (isPaused.current) { 
+        if (isPaused.current) {
              if (pausedMessageElement) pausedMessageElement.style.display = 'block';
              if (instructionsElement) instructionsElement.style.display = 'none';
         }
-      } else { 
+      } else {
         if (blockerElement) blockerElement.style.display = 'none';
         if (instructionsElement) instructionsElement.style.display = 'none';
         if (pausedMessageElement) pausedMessageElement.style.display = 'none';
@@ -448,10 +455,10 @@ export default function ArenaDisplay() {
       }
     }
 
-    ambientLightRef.current = new THREE.AmbientLight(); 
+    ambientLightRef.current = new THREE.AmbientLight();
     scene.add(ambientLightRef.current);
 
-    directionalLightRef.current = new THREE.DirectionalLight(); 
+    directionalLightRef.current = new THREE.DirectionalLight();
     directionalLightRef.current.position.set(20, 50, 20);
     directionalLightRef.current.castShadow = true;
     directionalLightRef.current.shadow.mapSize.width = 2048;
@@ -465,12 +472,12 @@ export default function ArenaDisplay() {
     scene.add(directionalLightRef.current);
 
     spotLightRef.current = new THREE.SpotLight(0xffffff, 1.5, 70, Math.PI / 7, 0.3, 1.5);
-    spotLightRef.current.visible = false; 
-    spotLightRef.current.position.set(0, 0, 0); 
-    camera.add(spotLightRef.current); 
+    spotLightRef.current.visible = false;
+    spotLightRef.current.position.set(0, 0, 0);
+    camera.add(spotLightRef.current);
 
     spotLightTargetRef.current = new THREE.Object3D();
-    spotLightTargetRef.current.position.set(0, 0, -1); 
+    spotLightTargetRef.current.position.set(0, 0, -1);
     camera.add(spotLightTargetRef.current);
     spotLightRef.current.target = spotLightTargetRef.current;
 
@@ -512,12 +519,12 @@ export default function ArenaDisplay() {
     const placeholderBottomMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9, metalness: 0.1 });
 
     const makeBuildingFaceMaterials = (wallMap: THREE.Texture | null, roofMap: THREE.Texture | null, sideRoughness: number, sideMetalness: number) => [
-      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }), 
-      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }), 
-      new THREE.MeshStandardMaterial({ map: roofMap, roughness: 0.8, metalness: 0.2 }), 
-      placeholderBottomMaterial, 
-      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }), 
-      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness })  
+      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }),
+      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }),
+      new THREE.MeshStandardMaterial({ map: roofMap, roughness: 0.8, metalness: 0.2 }),
+      placeholderBottomMaterial,
+      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness }),
+      new THREE.MeshStandardMaterial({ map: wallMap, roughness: sideRoughness, metalness: sideMetalness })
     ];
 
     const residentialMaterials = makeBuildingFaceMaterials(wallTexture1, roofTexture, 0.8, 0.2);
@@ -531,8 +538,9 @@ export default function ArenaDisplay() {
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
+    // buildingsRef.current.push(ground); // Don't add ground to building obstacles for collision
 
-    const wallHeight = GROUND_SIZE ; 
+    const wallHeight = GROUND_SIZE ;
     const wallThickness = 10;
     const boundaryWallMaterial = new THREE.MeshStandardMaterial({ color: 0x1A1A1D, roughness: 0.95, metalness: 0.1 });
 
@@ -555,69 +563,80 @@ export default function ArenaDisplay() {
     const addBuilding = (geometry: THREE.BufferGeometry, materials: THREE.Material | THREE.Material[], x: number, yBase: number, z: number) => {
       const buildingHeightParam = (geometry.parameters as any).height;
       const building = new THREE.Mesh(geometry, materials);
-      building.position.set(x, yBase + buildingHeightParam / 2, z); 
+      building.position.set(x, yBase + buildingHeightParam / 2, z);
       building.castShadow = true;
       building.receiveShadow = true;
       scene.add(building);
-      buildingsRef.current.push(building); 
+      buildingsRef.current.push(building);
     };
 
     const obstacleMaterials = [residentialMaterials, commercialMaterials, industrialMaterials, downtownMaterials];
-    const numBaseBuildings = 30; 
+    const numBaseBuildings = 60; // Increased building count
     for (let i = 0; i < numBaseBuildings; i++) {
-        const sizeX = THREE.MathUtils.randFloat(2, 6);
-        const sizeY = THREE.MathUtils.randFloat(1.5, 8); 
-        const sizeZ = THREE.MathUtils.randFloat(2, 6);
-        const posX = (Math.random() - 0.5) * (GROUND_SIZE - sizeX - 4); 
+        const sizeX = THREE.MathUtils.randFloat(2, 8); // Slightly larger range
+        const sizeY = THREE.MathUtils.randFloat(1.5, 12); // Taller buildings possible
+        const sizeZ = THREE.MathUtils.randFloat(2, 8);
+        const posX = (Math.random() - 0.5) * (GROUND_SIZE - sizeX - 4);
         const posZ = (Math.random() - 0.5) * (GROUND_SIZE - sizeZ - 4);
         const matIndex = Math.floor(Math.random() * obstacleMaterials.length);
         addBuilding(new THREE.BoxGeometry(sizeX, sizeY, sizeZ), obstacleMaterials[matIndex], posX, 0, posZ);
     }
-    addBuilding(new THREE.CylinderGeometry(0.5, 0.5, 10, 16), smokestackMaterial, (Math.random() - 0.5) * GROUND_SIZE * 0.6, 0, (Math.random() - 0.5) * GROUND_SIZE * 0.6);
-    addBuilding(new THREE.BoxGeometry(6, 25, 6), downtownMaterials, (Math.random() - 0.5) * GROUND_SIZE * 0.3, 0, (Math.random() - 0.5) * GROUND_SIZE * 0.3);
+     // Add more smaller obstacles too
+    for (let i = 0; i < numBaseBuildings / 2; i++) {
+        const size = THREE.MathUtils.randFloat(0.5, 1.5);
+        const posY = 0; // On the ground
+        const posX = (Math.random() - 0.5) * (GROUND_SIZE - size - 2);
+        const posZ = (Math.random() - 0.5) * (GROUND_SIZE - size - 2);
+        addBuilding(new THREE.BoxGeometry(size, size, size), obstacleMaterials[Math.floor(Math.random() * 2)], posX, posY, posZ);
+    }
+    addBuilding(new THREE.CylinderGeometry(0.7, 0.7, 15, 16), smokestackMaterial, (Math.random() - 0.5) * GROUND_SIZE * 0.6, 0, (Math.random() - 0.5) * GROUND_SIZE * 0.6);
+    addBuilding(new THREE.BoxGeometry(8, 30, 8), downtownMaterials, (Math.random() - 0.5) * GROUND_SIZE * 0.3, 0, (Math.random() - 0.5) * GROUND_SIZE * 0.3);
 
-    const swordHandGeo = new THREE.BoxGeometry(0.1, 1.0, 0.05); 
+
+    const swordHandGeo = new THREE.BoxGeometry(0.1, 1.0, 0.05);
     const swordHandMat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.3, metalness: 0.8 });
     handheldWeaponsRef.current.sword = new THREE.Mesh(swordHandGeo, swordHandMat);
-    handheldWeaponsRef.current.sword.visible = false; 
+    handheldWeaponsRef.current.sword.visible = false;
 
-    const gunHandGeo = new THREE.BoxGeometry(0.15, 0.15, 0.3); 
+    const gunHandGeo = new THREE.BoxGeometry(0.15, 0.15, 0.3);
     const gun1HandMat = new THREE.MeshStandardMaterial({ color: 0x3333ff, roughness: 0.5, metalness: 0.5 });
     handheldWeaponsRef.current.gun1 = new THREE.Mesh(gunHandGeo, gun1HandMat);
     handheldWeaponsRef.current.gun1.visible = false;
-    
+
     const gun2HandMat = new THREE.MeshStandardMaterial({ color: 0x33ff33, roughness: 0.5, metalness: 0.5 });
     handheldWeaponsRef.current.gun2 = new THREE.Mesh(gunHandGeo, gun2HandMat);
     handheldWeaponsRef.current.gun2.visible = false;
 
-    const powerUpY = 0.5; 
+    const powerUpY = 0.5;
     const powerUpDefinitions: { type: PowerUpType; color: number; size: [number, number, number] }[] = [
-        { type: 'gun1', color: 0x0000ff, size: [0.5, 0.5, 0.5] }, 
-        { type: 'gun2', color: 0x00ff00, size: [0.5, 0.5, 0.5] }, 
-        { type: 'sword', color: 0x808080, size: [0.2, 1.5, 0.2] }, 
+        { type: 'gun1', color: 0x0000ff, size: [0.5, 0.5, 0.5] },
+        { type: 'gun2', color: 0x00ff00, size: [0.5, 0.5, 0.5] },
+        { type: 'sword', color: 0x808080, size: [0.2, 1.5, 0.2] },
         { type: 'health', color: 0xff00ff, size: [0.6, 0.6, 0.6] },
         { type: 'invincibility', color: 0xffff00, size: [0.7, 0.7, 0.7] },
     ];
 
     const numPowerUps = powerUpDefinitions.length;
-    const zoneWidth = GROUND_SIZE / numPowerUps;
+    const zoneWidth = GROUND_SIZE / numPowerUps; // Approximate width per zone
     const halfGround = GROUND_SIZE / 2;
-    worldPowerUpsRef.current = []; 
+    worldPowerUpsRef.current = [];
 
+    // Distribute power-ups more evenly
     powerUpDefinitions.forEach((def, index) => {
+        // Assign to zones to spread them out, can overlap a bit
         const zoneStartX = -halfGround + index * zoneWidth;
         const zoneEndX = zoneStartX + zoneWidth;
 
-        const x = THREE.MathUtils.randFloat(zoneStartX + 2, zoneEndX - 2); 
-        const z = THREE.MathUtils.randFloat(-halfGround + 2, halfGround - 2); 
+        const x = THREE.MathUtils.randFloat(zoneStartX + 2, zoneEndX - 2); // +2, -2 for some padding from zone edges
+        const z = THREE.MathUtils.randFloat(-halfGround + 2, halfGround - 2); // +2, -2 for padding from map edges
 
         const geometry = new THREE.BoxGeometry(...def.size as [number, number, number]);
-        const material = new THREE.MeshStandardMaterial({ 
-            color: def.color, 
-            roughness: 0.5, 
+        const material = new THREE.MeshStandardMaterial({
+            color: def.color,
+            roughness: 0.5,
             metalness: 0.5,
-            emissive: def.color, 
-            emissiveIntensity: POWERUP_GLOW_INTENSITY 
+            emissive: def.color, // Make power-ups glow
+            emissiveIntensity: POWERUP_GLOW_INTENSITY
         });
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(x, powerUpY + def.size[1] / 2, z);
@@ -648,34 +667,37 @@ export default function ArenaDisplay() {
 
       if (isPaused.current || !controlsRef.current || !cameraRef.current) {
         if (rendererRef.current && sceneRef.current && cameraRef.current) {
-            rendererRef.current.render(sceneRef.current, cameraRef.current); 
+            rendererRef.current.render(sceneRef.current, cameraRef.current);
         }
-        prevTime.current = time - delta * 1000; 
+        prevTime.current = time - delta * 1000; // Adjust prevTime to avoid large jump on resume
         return;
       }
 
       const player = controlsRef.current.getObject();
       const physicsEyeOffset = isCrouching.current ? PLAYER_CROUCH_HEIGHT : PLAYER_NORMAL_HEIGHT;
-      let visualEyeOffset = physicsEyeOffset; 
+      let visualEyeOffset = physicsEyeOffset;
 
-      if (isPunchingRef.current || isKickingRef.current) { 
-        visualEyeOffset -= 0.05; 
+      if (isPunchingRef.current || isKickingRef.current || (isAnimatingAttackRef.current && equippedWeaponRef.current)) {
+        visualEyeOffset -= 0.05; // Camera dip for attacks
       }
 
-      if (onGround.current) {
-        player.position.y = playerLastSurfaceY.current + visualEyeOffset; 
-        verticalVelocity.current = 0; 
-        
-        let currentlyOverSupport = false;
-        const playerCurrentFeetYForCheck = player.position.y - visualEyeOffset; 
 
-        if (Math.abs(playerCurrentFeetYForCheck - playerLastSurfaceY.current) < 0.01) { 
-             if (playerLastSurfaceY.current === 0) { 
+      // Ground and surface interaction logic
+      if (onGround.current) {
+        player.position.y = playerLastSurfaceY.current + visualEyeOffset;
+        verticalVelocity.current = 0;
+
+        // Check if still on the same surface or need to fall
+        let currentlyOverSupport = false;
+        const playerCurrentFeetYForCheck = player.position.y - visualEyeOffset; // Recalculate based on potentially dipped visual offset
+
+        if (Math.abs(playerCurrentFeetYForCheck - playerLastSurfaceY.current) < 0.01) { // Close enough to last known surface
+             if (playerLastSurfaceY.current === 0) { // Was on main ground
                 if (player.position.x >= -GROUND_SIZE/2 && player.position.x <= GROUND_SIZE/2 &&
                     player.position.z >= -GROUND_SIZE/2 && player.position.z <= GROUND_SIZE/2) {
                     currentlyOverSupport = true;
                 }
-             } else { 
+             } else { // Was on a building
                 for (const building of buildingsRef.current) {
                     if (!building.geometry.parameters || building === ground) continue;
                     const geomParams = building.geometry.parameters as any;
@@ -683,7 +705,7 @@ export default function ArenaDisplay() {
                     const buildingBaseY = building.position.y - buildingHeight / 2;
                     const buildingTopActualY = buildingBaseY + buildingHeight;
 
-                    if (Math.abs(buildingTopActualY - playerLastSurfaceY.current) < 0.01) { 
+                    if (Math.abs(buildingTopActualY - playerLastSurfaceY.current) < 0.01) { // Is it the same building top?
                         const halfWidth = geomParams.width ? geomParams.width / 2 : (geomParams.radiusTop || geomParams.radiusBottom || 0);
                         const halfDepth = geomParams.depth ? geomParams.depth / 2 : (geomParams.radiusTop || geomParams.radiusBottom || 0);
                         if (player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
@@ -695,14 +717,16 @@ export default function ArenaDisplay() {
                 }
              }
         }
-        
+
+        // If not over the *last* surface, check if we've landed on a *new* one or the main ground
         if (!currentlyOverSupport) {
-            if (Math.abs(playerCurrentFeetYForCheck - 0) < 0.01 && 
+            // Check main ground first
+            if (Math.abs(playerCurrentFeetYForCheck - 0) < 0.01 && // Check if feet are near ground level
                 player.position.x >= -GROUND_SIZE/2 && player.position.x <= GROUND_SIZE/2 &&
                 player.position.z >= -GROUND_SIZE/2 && player.position.z <= GROUND_SIZE/2) {
                 currentlyOverSupport = true;
-                if (playerLastSurfaceY.current !== 0) playerLastSurfaceY.current = 0; 
-            } else {
+                if (playerLastSurfaceY.current !== 0) playerLastSurfaceY.current = 0; // Update last surface
+            } else { // Check buildings
                 for (const building of buildingsRef.current) {
                     if (!building.geometry.parameters || building === ground) continue;
                     const geomParams = building.geometry.parameters as any;
@@ -716,33 +740,37 @@ export default function ArenaDisplay() {
                     if (
                         player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
                         player.position.z >= building.position.z - halfDepth && player.position.z <= building.position.z + halfDepth &&
-                        Math.abs(playerCurrentFeetYForCheck - buildingTopActualY) < 0.05 
+                        Math.abs(playerCurrentFeetYForCheck - buildingTopActualY) < 0.05 // Feet are near this building's top
                     ) {
                         currentlyOverSupport = true;
-                        if (playerLastSurfaceY.current !== buildingTopActualY) playerLastSurfaceY.current = buildingTopActualY; 
+                        if (playerLastSurfaceY.current !== buildingTopActualY) playerLastSurfaceY.current = buildingTopActualY; // Update last surface
                         break;
                     }
                 }
             }
         }
 
-        if (!currentlyOverSupport) { 
+
+        if (!currentlyOverSupport) { // Truly in the air
             onGround.current = false;
-            jumpsMadeInAirRef.current = 0; 
+            jumpsMadeInAirRef.current = 0; // Allow first air jump if falling off edge
         } else {
-            player.position.y = playerLastSurfaceY.current + visualEyeOffset; 
+            // Force Y position to be stable if on ground/surface
+            player.position.y = playerLastSurfaceY.current + visualEyeOffset;
         }
       }
 
+      // Apply gravity and check for landing if not on ground
       if (!onGround.current) {
         const previousPlayerY = player.position.y;
         verticalVelocity.current -= GRAVITY * delta;
         player.position.y += verticalVelocity.current * delta;
 
         let landedOnObject = false;
-        if (verticalVelocity.current <= 0) { 
+        if (verticalVelocity.current <= 0) { // Only check for landing if moving downwards
+          // Check landing on buildings
           for (const building of buildingsRef.current) {
-            if (!building.geometry.parameters || building === ground) continue; 
+            if (!building.geometry.parameters || building === ground) continue; // Skip ground, handled separately
             const geomParams = building.geometry.parameters as any;
             const buildingHeightParam = geomParams.height;
             const buildingBaseY = building.position.y - buildingHeightParam / 2;
@@ -751,37 +779,38 @@ export default function ArenaDisplay() {
             const halfWidth = geomParams.width ? geomParams.width / 2 : (geomParams.radiusTop || geomParams.radiusBottom || 0);
             const halfDepth = geomParams.depth ? geomParams.depth / 2 : (geomParams.radiusTop || geomParams.radiusBottom || 0);
 
-            const playerCurrentFeetY = player.position.y - physicsEyeOffset; 
+            const playerCurrentFeetY = player.position.y - physicsEyeOffset; // Physics height for landing check
             const playerPreviousFeetY = previousPlayerY - physicsEyeOffset;
 
             if (
               player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
               player.position.z >= building.position.z - halfDepth && player.position.z <= building.position.z + halfDepth &&
-              playerPreviousFeetY >= buildingTopActualY - 0.01 && 
-              playerCurrentFeetY <= buildingTopActualY + 0.05 
+              playerPreviousFeetY >= buildingTopActualY - 0.01 && // Was above or at top in previous frame
+              playerCurrentFeetY <= buildingTopActualY + 0.05 // Is at or just below top in current frame
             ) {
-              player.position.y = buildingTopActualY + visualEyeOffset; 
+              player.position.y = buildingTopActualY + visualEyeOffset; // Place eyes correctly
               verticalVelocity.current = 0;
               onGround.current = true;
               jumpsMadeInAirRef.current = 0;
               landedOnObject = true;
-              playerLastSurfaceY.current = buildingTopActualY; 
+              playerLastSurfaceY.current = buildingTopActualY; // Update last known surface
               break;
             }
           }
 
-          const mainGroundTargetYVisual = visualEyeOffset; 
+          // Check landing on main ground if not landed on an object
+          const mainGroundTargetYVisual = visualEyeOffset; // Target eye Y for main ground
           if (!landedOnObject && player.position.y <= mainGroundTargetYVisual ) {
-             const currentFeetY = player.position.y - visualEyeOffset; 
-             const previousFeetY = previousPlayerY - visualEyeOffset; 
+             const currentFeetY = player.position.y - visualEyeOffset; // Use visual for this final check
+             const previousFeetY = previousPlayerY - visualEyeOffset;
 
-             if (previousFeetY >= 0 && currentFeetY <= 0 + 0.05) { 
+             if (previousFeetY >= 0 && currentFeetY <= 0 + 0.05) { // Crossed the ground plane
                 player.position.y = mainGroundTargetYVisual;
                 verticalVelocity.current = 0;
                 onGround.current = true;
                 jumpsMadeInAirRef.current = 0;
-                playerLastSurfaceY.current = 0; 
-             } else if (player.position.y < mainGroundTargetYVisual) { 
+                playerLastSurfaceY.current = 0; // Update last known surface
+             } else if (player.position.y < mainGroundTargetYVisual) { // If somehow fell through, snap back
                 player.position.y = mainGroundTargetYVisual;
                 verticalVelocity.current = 0;
                 onGround.current = true;
@@ -792,18 +821,19 @@ export default function ArenaDisplay() {
         }
       }
 
+      // Horizontal movement and collision
       if (controlsRef.current.isLocked === true) {
-        velocity.current.x -= velocity.current.x * 10.0 * delta; 
+        velocity.current.x -= velocity.current.x * 10.0 * delta; // Apply damping
         velocity.current.z -= velocity.current.z * 10.0 * delta;
 
         direction.current.z = Number(moveForward.current) - Number(moveBackward.current);
         direction.current.x = Number(moveRight.current) - Number(moveLeft.current);
-        direction.current.normalize(); 
+        direction.current.normalize(); // Ensure consistent speed in all directions
 
         let currentMoveSpeed = PLAYER_SPEED;
-        if (isRunning.current && !isCrouching.current && onGround.current) { 
+        if (isRunning.current && !isCrouching.current && onGround.current) { // Can only run if standing and on ground
             currentMoveSpeed *= PLAYER_RUN_MULTIPLIER;
-        } else if (isCrouching.current && onGround.current) { 
+        } else if (isCrouching.current && onGround.current) { // Can only crouch if on ground
             currentMoveSpeed *= PLAYER_CROUCH_SPEED_MULTIPLIER;
         }
 
@@ -811,37 +841,45 @@ export default function ArenaDisplay() {
         if (moveLeft.current || moveRight.current) velocity.current.x -= direction.current.x * currentMoveSpeed * 10.0 * delta;
 
         const originalPlayerPosition = player.position.clone();
-        const playerEyeHeightForCollision = physicsEyeOffset; 
+        const playerEyeHeightForCollision = physicsEyeOffset; // Use physics height for collision checks
 
+        // Strafe movement (local X)
         const strafeAmount = -velocity.current.x * delta;
-        if (Math.abs(strafeAmount) > 0.0001) { 
+        if (Math.abs(strafeAmount) > 0.0001) { // Only move if there's significant velocity
             controlsRef.current.moveRight(strafeAmount);
             if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
-                player.position.x = originalPlayerPosition.x; 
+                player.position.x = originalPlayerPosition.x; // Revert world X
+                // player.position.z = originalPlayerPosition.z; // Revert world Z as moveRight can affect it
             }
         }
-        const positionAfterStrafe = player.position.clone(); 
+        const positionAfterStrafe = player.position.clone(); // Position after attempting X-axis move (and potential revert)
+
+        // Forward/Backward movement (local Z)
         const forwardAmount = -velocity.current.z * delta;
-        if (Math.abs(forwardAmount) > 0.0001) { 
+        if (Math.abs(forwardAmount) > 0.0001) { // Only move if there's significant velocity
             controlsRef.current.moveForward(forwardAmount);
             if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
-                player.position.z = positionAfterStrafe.z; 
+                player.position.z = positionAfterStrafe.z; // Revert world Z to state before this Z move
+                // player.position.x = positionAfterStrafe.x; // Revert world X to state before this Z move
             }
         }
-        
+
+        // Clamp player position to stay within ground boundaries (prevents falling off map edges)
         const halfGroundMinusRadius = GROUND_SIZE / 2 - PLAYER_COLLISION_RADIUS;
         player.position.x = Math.max(-halfGroundMinusRadius, Math.min(halfGroundMinusRadius, player.position.x));
         player.position.z = Math.max(-halfGroundMinusRadius, Math.min(halfGroundMinusRadius, player.position.z));
 
+
+        // Power-up collection logic
         const playerPos = player.position;
         for (let i = worldPowerUpsRef.current.length - 1; i >= 0; i--) {
             const powerUp = worldPowerUpsRef.current[i];
-            if (!powerUp.collected && powerUp.mesh.parent === sceneRef.current) { 
+            if (!powerUp.collected && powerUp.mesh.parent === sceneRef.current) { // Check if mesh is still in scene
                 const distanceToPowerUp = playerPos.distanceTo(powerUp.mesh.position);
                 if (distanceToPowerUp < POWERUP_COLLECTION_DISTANCE) {
                     console.log(`Collected ${powerUp.type}`);
                     powerUp.collected = true;
-                    if (sceneRef.current && powerUp.mesh.parent) sceneRef.current.remove(powerUp.mesh); 
+                    if (sceneRef.current && powerUp.mesh.parent) sceneRef.current.remove(powerUp.mesh); // Remove from scene
 
                     if (powerUp.type === 'health') {
                         setCurrentHealth(PLAYER_MAX_HEALTH);
@@ -857,63 +895,63 @@ export default function ArenaDisplay() {
                         invincibilityTimeoutRef.current = setTimeout(() => {
                             isInvincibleRef.current = false;
                             console.log("Invincibility WORE OFF!");
-                            // No need to call clearInvincibility here, context timer handles display
                         }, INVINCIBILITY_DURATION * 1000);
-                    } else { 
-                        if (equippedWeaponRef.current && handheldWeaponsRef.current[equippedWeaponRef.current as Exclude<PowerUpType, 'health' | 'invincibility'>]) {
-                            const oldWeaponMesh = handheldWeaponsRef.current[equippedWeaponRef.current as Exclude<PowerUpType, 'health' | 'invincibility'>];
+                    } else { // Weapon power-up
+                        // Unequip previous weapon from hand
+                        if (equippedWeaponRef.current && handheldWeaponsRef.current[equippedWeaponRef.current]) {
+                            const oldWeaponMesh = handheldWeaponsRef.current[equippedWeaponRef.current];
                             if (oldWeaponMesh && oldWeaponMesh.parent === cameraRef.current) {
                                 cameraRef.current?.remove(oldWeaponMesh);
                                 oldWeaponMesh.visible = false;
                             }
                         }
-                        
-                        equippedWeaponRef.current = powerUp.type;
+
+                        equippedWeaponRef.current = powerUp.type as Exclude<PowerUpType, 'health' | 'invincibility'>;
                         const newWeaponMesh = handheldWeaponsRef.current[powerUp.type as Exclude<PowerUpType, 'health' | 'invincibility'>];
                         if (newWeaponMesh && cameraRef.current) {
                             cameraRef.current.add(newWeaponMesh);
                             newWeaponMesh.visible = true;
-                            positionWeaponInHand(newWeaponMesh, powerUp.type);
+                            positionWeaponInHand(newWeaponMesh, powerUp.type as Exclude<PowerUpType, 'health' | 'invincibility'>);
                         }
                     }
-                    break; 
+                    // No need to break, allow collecting multiple if overlapping (though unlikely)
                 }
             }
         }
 
+        // Attack animation logic
         if (isAnimatingAttackRef.current) {
             const currentTime = performance.now();
             const animProgress = (currentTime - attackAnimStartTimeRef.current) / (ATTACK_ANIMATION_DURATION * 1000);
 
-            const weaponMesh = equippedWeaponRef.current && equippedWeaponRef.current !== 'health' && equippedWeaponRef.current !== 'invincibility' 
-                ? handheldWeaponsRef.current[equippedWeaponRef.current as Exclude<PowerUpType, 'health' | 'invincibility'>] 
+            const currentEquippedWeaponType = equippedWeaponRef.current;
+            const weaponMesh = currentEquippedWeaponType
+                ? handheldWeaponsRef.current[currentEquippedWeaponType]
                 : null;
 
-            if (weaponMesh && weaponMesh.visible) { 
+            if (weaponMesh && weaponMesh.visible) {
                 if (animProgress < 1) {
-                    if (equippedWeaponRef.current === 'sword') {
-                        const swingAngle = Math.sin(animProgress * Math.PI) * (Math.PI / 3); 
-                        weaponMesh.rotation.z = swingAngle; 
-                    } else if (equippedWeaponRef.current === 'gun1' || equippedWeaponRef.current === 'gun2') {
-                        const recoilAmount = Math.sin(animProgress * Math.PI) * 0.1; 
-                        weaponMesh.position.z = -0.4 - recoilAmount; 
+                    if (currentEquippedWeaponType === 'sword') {
+                        const swingAngle = Math.sin(animProgress * Math.PI) * (Math.PI / 3); // Example swing
+                        weaponMesh.rotation.z = swingAngle; // Animate around Z axis of weapon
+                    } else if (currentEquippedWeaponType === 'gun1' || currentEquippedWeaponType === 'gun2') {
+                        const recoilAmount = Math.sin(animProgress * Math.PI) * 0.1; // Example recoil
+                        weaponMesh.position.z = -0.4 - recoilAmount; // Move weapon back along its local Z
                     }
                 } else {
                     isAnimatingAttackRef.current = false;
-                    if (equippedWeaponRef.current && weaponMesh && (equippedWeaponRef.current !== 'health' && equippedWeaponRef.current !== 'invincibility') ) { 
-                         positionWeaponInHand(weaponMesh, equippedWeaponRef.current); 
+                    // Reset weapon position/rotation after animation
+                    if (currentEquippedWeaponType && weaponMesh) {
+                         positionWeaponInHand(weaponMesh, currentEquippedWeaponType); // Ensure it returns to default hand position
                     }
                 }
-            } else {
+            } else { // No weapon equipped or weapon not visible (shouldn't happen if logic is correct)
                  if (animProgress >= 1) isAnimatingAttackRef.current = false;
-                 if (!isAnimatingAttackRef.current && isPunchingRef.current){ 
-                 }
+                 // If it was a punch (no weapon mesh), animation ends when isPunchingRef becomes false
             }
-        } else if (isPunchingRef.current && !equippedWeaponRef.current) { 
-            const currentTime = performance.now();
-             if ((currentTime - attackAnimStartTimeRef.current) / 1000 > 0.1) { 
-                isAnimatingAttackRef.current = false;
-             }
+        } else if (isPunchingRef.current && !equippedWeaponRef.current){ // Punching (no weapon)
+            // The camera dip handles the "animation" for punch
+            // isPunchingRef becomes false after 100ms timeout set in onMouseDown
         }
 
 
@@ -945,7 +983,9 @@ export default function ArenaDisplay() {
           }
           accumulatedDuration += phaseActualDuration;
         }
-        segmentProgress = Math.max(0, Math.min(1, segmentProgress)); 
+        // Clamp segmentProgress to avoid issues with floating point arithmetic at boundaries
+        segmentProgress = Math.max(0, Math.min(1, segmentProgress));
+
 
         const currentPhase = dayNightCycleConfig.phases[currentPhaseIndex];
         const nextPhase = dayNightCycleConfig.phases[nextPhaseIndex];
@@ -960,7 +1000,7 @@ export default function ArenaDisplay() {
         };
         return { currentTime: newTime, currentPhaseDetails: newDetails };
       });
-    }, 1000); 
+    }, 1000);
 
 
     return () => {
@@ -990,7 +1030,7 @@ export default function ArenaDisplay() {
 
       if (spotLightRef.current) {
         if(spotLightRef.current.shadow && spotLightRef.current.shadow.map) {
-            spotLightRef.current.shadow.map.dispose(); 
+            spotLightRef.current.shadow.map.dispose();
         }
       }
 
@@ -1016,6 +1056,7 @@ export default function ArenaDisplay() {
       });
 
       worldPowerUpsRef.current.forEach(powerUp => {
+        if(powerUp.mesh.parent && sceneRef.current) sceneRef.current.remove(powerUp.mesh); // Ensure removed from scene
         if (powerUp.mesh.geometry) powerUp.mesh.geometry.dispose();
         if (powerUp.mesh.material) {
             if (Array.isArray(powerUp.mesh.material)) {
@@ -1024,13 +1065,12 @@ export default function ArenaDisplay() {
                 (powerUp.mesh.material as THREE.Material).dispose();
             }
         }
-        if(sceneRef.current && powerUp.mesh.parent) sceneRef.current.remove(powerUp.mesh); 
       });
       worldPowerUpsRef.current = [];
 
 
       if (rendererRef.current) {
-         rendererRef.current.dispose(); 
+         rendererRef.current.dispose();
          if (sceneRef.current) {
              sceneRef.current.traverse(object => {
                 if (object instanceof THREE.Mesh) {
@@ -1044,7 +1084,7 @@ export default function ArenaDisplay() {
                     }
                 }
              });
-             buildingsRef.current = []; 
+             buildingsRef.current = [];
          }
       }
 
@@ -1062,7 +1102,7 @@ export default function ArenaDisplay() {
       spotLightTargetRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setCurrentHealth, setInvincibilityActive]); 
+  }, [setCurrentHealth, setInvincibilityActive]);
 
   useEffect(() => {
     if (sceneRef.current && ambientLightRef.current && directionalLightRef.current) {
@@ -1083,3 +1123,4 @@ export default function ArenaDisplay() {
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
 
+    
