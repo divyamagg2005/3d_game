@@ -39,7 +39,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
               adKey="b489cb229500818212b8f74504664a80" 
               configWidth={160}
               configHeight={600}
-              containerIdSuffix="left-sidebar"
+              containerIdSuffix="left-sidebar" // Unique suffix for container ID
             />
           )}
         </aside>
@@ -51,14 +51,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </div>
 
         <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-l border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
+           {/* Right sidebar is now blank */}
            {isClient && (
-            <AdsterraAdSlot
-              adKey="23c351cbde922690a63e148e3463a2e2" 
-              configWidth={160}
-              configHeight={300} 
-              containerIdSuffix="right-sidebar"
-            />
-          )}
+            <div className="w-[160px] h-[600px] bg-muted/20 flex items-center justify-center text-sm">
+              {/* You can put placeholder text or leave it empty */}
+            </div>
+           )}
         </aside>
       </main>
     </div>
