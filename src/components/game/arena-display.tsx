@@ -28,12 +28,13 @@ interface DayNightPhase {
 const dayNightCycleConfig = {
   cycleDuration: 120, // 120 seconds for a full cycle (2 minutes)
   phases: [
-    { name: 'Day', duration: 0.4, ambient: [0xffffff, 1.8], directional: [0xffffff, 2.5], background: 0xCAEFFF, fog: 0xCAEFFF },
-    { name: 'Dusk', duration: 0.15, ambient: [0xffaa77, 0.4], directional: [0xffaa77, 0.5], background: 0x403050, fog: 0x403050 },
-    { name: 'Night', duration: 0.3, ambient: [0x101020, 0.02], directional: [0x151525, 0.05], background: 0x00000A, fog: 0x00000A },
-    { name: 'Dawn', duration: 0.15, ambient: [0x88aabb, 0.3], directional: [0x88aabb, 0.4], background: 0x304060, fog: 0x304060 },
+    { name: 'Day', duration: 0.4, ambient: [0xffffff, 1.8], directional: [0xffffff, 2.5], background: 0xCAEFFF, fog: 0xCAEFFF }, // Bright day
+    { name: 'Dusk', duration: 0.15, ambient: [0xffaa77, 0.4], directional: [0xffaa77, 0.5], background: 0x403050, fog: 0x403050 }, // Dimming dusk
+    { name: 'Night', duration: 0.3, ambient: [0x101020, 0.02], directional: [0x151525, 0.05], background: 0x00000A, fog: 0x00000A }, // Dark night
+    { name: 'Dawn', duration: 0.15, ambient: [0x88aabb, 0.3], directional: [0x88aabb, 0.4], background: 0x304060, fog: 0x304060 }, // Brightening dawn
   ] as DayNightPhase[],
 };
+
 
 interface DayNightCycleState {
   currentTime: number;
@@ -62,16 +63,15 @@ function checkCollisionWithObjects(
     playerObject: THREE.Object3D, // camera
     obstacleMeshes: THREE.Mesh[],
     radius: number,
-    playerCurrentHeight: number // This is PLAYER_NORMAL_HEIGHT or PLAYER_CROUCH_HEIGHT
+    playerCurrentEyeHeight: number 
 ): boolean {
-    const playerXZPos = playerObject.position; // Use XZ from camera for collision checks
+    const playerXZPos = playerObject.position; 
 
-    // Player's collision box: from Y=0 (feet on ground) to Y=playerCurrentHeight (eyes/head)
-    // This assumes the obstacles are also positioned relative to Y=0 ground.
     const playerColliderBox = new THREE.Box3(
-        new THREE.Vector3(playerXZPos.x - radius, 0, playerXZPos.z - radius), // Min Y is 0 (ground)
-        new THREE.Vector3(playerXZPos.x + radius, playerCurrentHeight + 0.1, playerXZPos.z + radius) // Max Y is player's current height + headroom
+        new THREE.Vector3(playerXZPos.x - radius, playerObject.position.y - playerCurrentEyeHeight, playerXZPos.z - radius), 
+        new THREE.Vector3(playerXZPos.x + radius, playerObject.position.y + 0.1, playerXZPos.z + radius) // Max Y is eye level + small headroom
     );
+
 
     for (const obstacle of obstacleMeshes) {
         if (!obstacle.geometry.boundingBox) {
@@ -99,8 +99,8 @@ export default function ArenaDisplay() {
   const moveLeft = useRef(false);
   const moveRight = useRef(false);
   
-  const velocity = useRef(new THREE.Vector3()); // For XZ movement
-  const verticalVelocity = useRef(0); // For Y movement (jump/gravity)
+  const velocity = useRef(new THREE.Vector3()); 
+  const verticalVelocity = useRef(0); 
   const onGround = useRef(true);
   const isRunning = useRef(false);
   const isCrouching = useRef(false);
@@ -112,10 +112,12 @@ export default function ArenaDisplay() {
   const ambientLightRef = useRef<THREE.AmbientLight | null>(null);
   const directionalLightRef = useRef<THREE.DirectionalLight | null>(null);
   const buildingsRef = useRef<THREE.Mesh[]>([]);
+  const playerLastSurfaceY = useRef(0); // Stores the Y of the surface player is on (feet level)
 
 
   const [dayNightCycle, setDayNightCycle] = useState<DayNightCycleState>(() => {
     const initialPhase = dayNightCycleConfig.phases[0];
+    playerLastSurfaceY.current = 0; // Initialize on main ground
     return {
       currentTime: 0,
       currentPhaseDetails: {
@@ -162,7 +164,6 @@ export default function ArenaDisplay() {
       case 'KeyC':
          if (!isPaused.current && controlsRef.current?.isLocked) {
             isCrouching.current = !isCrouching.current;
-            // Camera height adjustment will happen in animate loop based on onGround state
          }
         break;
       case 'KeyP': {
@@ -261,7 +262,9 @@ export default function ArenaDisplay() {
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(75, currentMount.clientWidth / currentMount.clientHeight, 0.1, 1000);
-    camera.position.set(0, PLAYER_NORMAL_HEIGHT, 5); 
+    const initialPlayerEyeHeight = PLAYER_NORMAL_HEIGHT;
+    camera.position.set(0, initialPlayerEyeHeight, 5); 
+    playerLastSurfaceY.current = 0; // Player starts on ground at Y=0
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -274,7 +277,7 @@ export default function ArenaDisplay() {
 
     const controls = new PointerLockControls(camera, renderer.domElement);
     controls.pointerSpeed = PLAYER_SENSITIVITY / 0.002; 
-    scene.add(controls.getObject()); // Camera is the object moved by PointerLockControls
+    scene.add(controls.getObject()); 
     controlsRef.current = controls;
     
     const instructionsElement = document.getElementById('instructions');
@@ -338,12 +341,12 @@ export default function ArenaDisplay() {
       }
     };
 
+
     const groundTexture = textureLoader.load('/textures/ground-texture.jpg', undefined, undefined, textureLoadError('ground-texture.jpg'));
     const roofTexture = textureLoader.load('/textures/roof-texture.jpg', undefined, undefined, textureLoadError('roof-texture.jpg'));
     const wallTexture1 = textureLoader.load('/textures/wall-texture-1.jpg', undefined, undefined, textureLoadError('wall-texture-1.jpg'));
     const wallTexture2 = textureLoader.load('/textures/wall-texture-2.jpg', undefined, undefined, textureLoadError('wall-texture-2.jpg'));
     const wallTexture3 = textureLoader.load('/textures/wall-texture-3.jpg', undefined, undefined, textureLoadError('wall-texture-3.jpg'));
-
 
     const allTextures = [groundTexture, roofTexture, wallTexture1, wallTexture2, wallTexture3];
     allTextures.forEach(texture => {
@@ -385,6 +388,7 @@ export default function ArenaDisplay() {
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
+    // buildingsRef.current.push(ground); // Don't add ground to buildingsRef for roof landing logic, treat it separately
 
     const wallHeight = GROUND_SIZE ; 
     const wallThickness = 10; 
@@ -407,62 +411,68 @@ export default function ArenaDisplay() {
     wallW.castShadow = true; wallW.receiveShadow = true; scene.add(wallW); buildingsRef.current.push(wallW);
 
     const buildingOffset = GROUND_SIZE / 4; 
-    // buildingsRef.current = []; // Already initialized empty
 
-    const addBuilding = (geometry: THREE.BufferGeometry, materials: THREE.Material | THREE.Material[], x: number, y: number, z: number) => {
+    const addBuilding = (geometry: THREE.BufferGeometry, materials: THREE.Material | THREE.Material[], x: number, yBase: number, z: number) => {
+      const buildingHeight = (geometry.parameters as any).height; // Assuming BoxGeometry or CylinderGeometry
       const building = new THREE.Mesh(geometry, materials);
-      building.position.set(x, y, z); // Y is the center of the building
+      // yBase is the Y position of the *base* of the building. Center is yBase + buildingHeight / 2
+      building.position.set(x, yBase + buildingHeight / 2, z); 
       building.castShadow = true;
       building.receiveShadow = true;
       scene.add(building);
       buildingsRef.current.push(building); 
     };
     
-    // Residential Area
-    addBuilding(new THREE.BoxGeometry(4, 3, 5), residentialMaterials, -buildingOffset, 1.5, -buildingOffset + 5);
-    addBuilding(new THREE.BoxGeometry(5, 2.5, 4), residentialMaterials, -buildingOffset + 8, 1.25, -buildingOffset -2);
-    addBuilding(new THREE.BoxGeometry(6, 8, 5), residentialMaterials, -buildingOffset - 5, 4, -buildingOffset - 8);
-    addBuilding(new THREE.BoxGeometry(4.5, 3.5, 5.5), residentialMaterials, -buildingOffset - 12, 1.75, -buildingOffset + 10);
-    addBuilding(new THREE.BoxGeometry(5, 3, 4.5), residentialMaterials, -buildingOffset + 15, 1.5, -buildingOffset + 15);
-    addBuilding(new THREE.BoxGeometry(3.5, 2, 6), residentialMaterials, -buildingOffset + 2, 1, -buildingOffset -15);
-    addBuilding(new THREE.BoxGeometry(4, 2, 4), residentialMaterials, -buildingOffset + 20, 1, -buildingOffset + 5);
-    addBuilding(new THREE.BoxGeometry(5, 4, 5), residentialMaterials, -buildingOffset - 18, 2, -buildingOffset - 18);
+    // Residential Area (base Y is 0)
+    addBuilding(new THREE.BoxGeometry(4, 3, 5), residentialMaterials, -buildingOffset, 0, -buildingOffset + 5);
+    addBuilding(new THREE.BoxGeometry(5, 2.5, 4), residentialMaterials, -buildingOffset + 8, 0, -buildingOffset -2);
+    addBuilding(new THREE.BoxGeometry(6, 8, 5), residentialMaterials, -buildingOffset - 5, 0, -buildingOffset - 8);
+    addBuilding(new THREE.BoxGeometry(4.5, 3.5, 5.5), residentialMaterials, -buildingOffset - 12, 0, -buildingOffset + 10);
+    addBuilding(new THREE.BoxGeometry(5, 3, 4.5), residentialMaterials, -buildingOffset + 15, 0, -buildingOffset + 15);
+    addBuilding(new THREE.BoxGeometry(3.5, 2, 6), residentialMaterials, -buildingOffset + 2, 0, -buildingOffset -15);
+    addBuilding(new THREE.BoxGeometry(4, 2, 4), residentialMaterials, -buildingOffset + 20, 0, -buildingOffset + 5);
+    addBuilding(new THREE.BoxGeometry(5, 4, 5), residentialMaterials, -buildingOffset - 18, 0, -buildingOffset - 18);
 
 
-    // Commercial Zone
-    addBuilding(new THREE.BoxGeometry(7, 5, 6), commercialMaterials, buildingOffset, 2.5, -buildingOffset);
-    addBuilding(new THREE.BoxGeometry(5, 10, 5), commercialMaterials, buildingOffset + 10, 5, -buildingOffset + 8);
-    addBuilding(new THREE.BoxGeometry(8, 6, 7), commercialMaterials, buildingOffset - 8, 3, -buildingOffset - 10);
-    addBuilding(new THREE.BoxGeometry(6, 9, 6), commercialMaterials, buildingOffset + 18, 4.5, -buildingOffset - 5);
-    addBuilding(new THREE.BoxGeometry(7.5, 5.5, 6.5), commercialMaterials, buildingOffset + 3, 2.75, -buildingOffset + 18);
-    addBuilding(new THREE.BoxGeometry(6.5, 7, 5), commercialMaterials, buildingOffset - 15, 3.5, -buildingOffset + 12);
-    addBuilding(new THREE.BoxGeometry(5.5, 6, 5.5), commercialMaterials, buildingOffset + 22, 3, -buildingOffset + 22);
+    // Commercial Zone (base Y is 0)
+    addBuilding(new THREE.BoxGeometry(7, 5, 6), commercialMaterials, buildingOffset, 0, -buildingOffset);
+    addBuilding(new THREE.BoxGeometry(5, 10, 5), commercialMaterials, buildingOffset + 10, 0, -buildingOffset + 8);
+    addBuilding(new THREE.BoxGeometry(8, 6, 7), commercialMaterials, buildingOffset - 8, 0, -buildingOffset - 10);
+    addBuilding(new THREE.BoxGeometry(6, 9, 6), commercialMaterials, buildingOffset + 18, 0, -buildingOffset - 5);
+    addBuilding(new THREE.BoxGeometry(7.5, 5.5, 6.5), commercialMaterials, buildingOffset + 3, 0, -buildingOffset + 18);
+    addBuilding(new THREE.BoxGeometry(6.5, 7, 5), commercialMaterials, buildingOffset - 15, 0, -buildingOffset + 12);
+    addBuilding(new THREE.BoxGeometry(5.5, 6, 5.5), commercialMaterials, buildingOffset + 22, 0, -buildingOffset + 22);
 
 
-    // Industrial Sector
-    addBuilding(new THREE.BoxGeometry(15, 6, 10), industrialMaterials, -buildingOffset + 5, 3, buildingOffset);
-    const factory = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 8), industrialMaterials);
-    factory.position.set(-buildingOffset - 10, 4, buildingOffset + 12); // Y is center
+    // Industrial Sector (base Y is 0)
+    addBuilding(new THREE.BoxGeometry(15, 6, 10), industrialMaterials, -buildingOffset + 5, 0, buildingOffset);
+    
+    const factoryGeom = new THREE.BoxGeometry(10, 8, 8);
+    const factory = new THREE.Mesh(factoryGeom, industrialMaterials);
+    factory.position.set(-buildingOffset - 10, 8 / 2, buildingOffset + 12); // Y is center
     factory.castShadow = true; factory.receiveShadow = true; scene.add(factory); buildingsRef.current.push(factory);
-    const factorySmokestack = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 18, 16), smokestackMaterial); 
-    factorySmokestack.position.set(-buildingOffset - 13.5, 9, buildingOffset + 14); // Y is center of cylinder (base at Y=0)
+    
+    const factorySmokestackGeom = new THREE.CylinderGeometry(1.5, 1.5, 18, 16);
+    const factorySmokestack = new THREE.Mesh(factorySmokestackGeom, smokestackMaterial); 
+    factorySmokestack.position.set(-buildingOffset - 13.5, 18 / 2, buildingOffset + 14); // Y is center of cylinder (base at Y=0)
     factorySmokestack.castShadow = true; factorySmokestack.receiveShadow = true; scene.add(factorySmokestack); buildingsRef.current.push(factorySmokestack);
-    addBuilding(new THREE.BoxGeometry(12, 7, 9), industrialMaterials, -buildingOffset - 20, 3.5, buildingOffset - 5);
-    addBuilding(new THREE.BoxGeometry(18, 5, 12), industrialMaterials, -buildingOffset + 20, 2.5, buildingOffset + 20);
-    addBuilding(new THREE.BoxGeometry(9, 4, 11), industrialMaterials, -buildingOffset - 2, 2, buildingOffset + 25);
-    addBuilding(new THREE.BoxGeometry(14, 6.5, 8.5), industrialMaterials, -buildingOffset + 15, 3.25, buildingOffset - 10);
+    
+    addBuilding(new THREE.BoxGeometry(12, 7, 9), industrialMaterials, -buildingOffset - 20, 0, buildingOffset - 5);
+    addBuilding(new THREE.BoxGeometry(18, 5, 12), industrialMaterials, -buildingOffset + 20, 0, buildingOffset + 20);
+    addBuilding(new THREE.BoxGeometry(9, 4, 11), industrialMaterials, -buildingOffset - 2, 0, buildingOffset + 25);
+    addBuilding(new THREE.BoxGeometry(14, 6.5, 8.5), industrialMaterials, -buildingOffset + 15, 0, buildingOffset - 10);
 
 
-    // Downtown Area
-    addBuilding(new THREE.BoxGeometry(6, 15, 6), downtownMaterials, buildingOffset, 7.5, buildingOffset);
-    addBuilding(new THREE.BoxGeometry(7, 25, 7), downtownMaterials, buildingOffset + 12, 12.5, buildingOffset + 12); // Landmark
-    addBuilding(new THREE.BoxGeometry(5.5, 20, 5.5), downtownMaterials, buildingOffset - 7, 10, buildingOffset + 8);
-    addBuilding(new THREE.BoxGeometry(6.5, 18, 6.5), downtownMaterials, buildingOffset + 20, 9, buildingOffset - 10);
-    addBuilding(new THREE.BoxGeometry(5, 22, 5), downtownMaterials, buildingOffset - 15, 11, buildingOffset - 15);
-    addBuilding(new THREE.BoxGeometry(8, 30, 8), downtownMaterials, buildingOffset + 25, 15, buildingOffset + 25); // Another tall one
-    addBuilding(new THREE.BoxGeometry(4.5, 16, 4.5), downtownMaterials, buildingOffset - 20, 8, buildingOffset + 20);
+    // Downtown Area (base Y is 0)
+    addBuilding(new THREE.BoxGeometry(6, 15, 6), downtownMaterials, buildingOffset, 0, buildingOffset);
+    addBuilding(new THREE.BoxGeometry(7, 25, 7), downtownMaterials, buildingOffset + 12, 0, buildingOffset + 12); 
+    addBuilding(new THREE.BoxGeometry(5.5, 20, 5.5), downtownMaterials, buildingOffset - 7, 0, buildingOffset + 8);
+    addBuilding(new THREE.BoxGeometry(6.5, 18, 6.5), downtownMaterials, buildingOffset + 20, 0, buildingOffset - 10);
+    addBuilding(new THREE.BoxGeometry(5, 22, 5), downtownMaterials, buildingOffset - 15, 0, buildingOffset - 15);
+    addBuilding(new THREE.BoxGeometry(8, 30, 8), downtownMaterials, buildingOffset + 25, 0, buildingOffset + 25); 
+    addBuilding(new THREE.BoxGeometry(4.5, 16, 4.5), downtownMaterials, buildingOffset - 20, 0, buildingOffset + 20);
 
-    // Smaller obstacles for hide and seek
+    // Smaller obstacles for hide and seek (base Y is 0)
     const obstacleMaterials = [residentialMaterials, commercialMaterials, industrialMaterials, downtownMaterials];
     for (let i = 0; i < 50; i++) {
         const sizeX = Math.random() * 2 + 1; 
@@ -471,7 +481,7 @@ export default function ArenaDisplay() {
         const posX = (Math.random() - 0.5) * (GROUND_SIZE - sizeX);
         const posZ = (Math.random() - 0.5) * (GROUND_SIZE - sizeZ);
         const matIndex = Math.floor(Math.random() * obstacleMaterials.length);
-        addBuilding(new THREE.BoxGeometry(sizeX, sizeY, sizeZ), obstacleMaterials[matIndex], posX, sizeY / 2, posZ); // Y is sizeY / 2 for base on ground
+        addBuilding(new THREE.BoxGeometry(sizeX, sizeY, sizeZ), obstacleMaterials[matIndex], posX, 0, posZ);
     }
 
 
@@ -501,24 +511,96 @@ export default function ArenaDisplay() {
         return;
       }
       
-      const player = controlsRef.current.getObject(); // This is the camera
-      const effectivePlayerHeight = isCrouching.current ? PLAYER_CROUCH_HEIGHT : PLAYER_NORMAL_HEIGHT;
+      const player = controlsRef.current.getObject();
+      const currentEyeOffset = isCrouching.current ? PLAYER_CROUCH_HEIGHT : PLAYER_NORMAL_HEIGHT;
+
+
+      // "Still on ground" check
+      if (onGround.current) {
+        let stillSupported = false;
+        const playerFeetY = player.position.y - currentEyeOffset;
+
+        // Check if on main ground
+        if (Math.abs(playerFeetY - 0) < 0.01 && Math.abs(player.position.y - (playerLastSurfaceY.current + currentEyeOffset)) < 0.01) {
+             stillSupported = true;
+        } else {
+        // Check if on a building roof
+          for (const building of buildingsRef.current) {
+            if (!building.geometry.parameters || building === ground) continue; // Skip non-box/cylinder or the ground itself
+            const geomParams = building.geometry.parameters as any; // { width, height, depth } or { radiusTop, height }
+            const buildingHeight = geomParams.height;
+            const buildingBaseY = building.position.y - buildingHeight / 2;
+            const buildingTopActualY = buildingBaseY + buildingHeight;
+
+            const halfWidth = geomParams.width ? geomParams.width / 2 : geomParams.radiusTop; // Approx for cylinder
+            const halfDepth = geomParams.depth ? geomParams.depth / 2 : geomParams.radiusTop; // Approx for cylinder
+
+            if (
+              player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
+              player.position.z >= building.position.z - halfDepth && player.position.z <= building.position.z + halfDepth &&
+              Math.abs(playerFeetY - buildingTopActualY) < 0.01 && // Are feet at this building's top?
+              Math.abs(player.position.y - (playerLastSurfaceY.current + currentEyeOffset)) < 0.01 // Is eye level consistent with last surface?
+            ) {
+              stillSupported = true;
+              break;
+            }
+          }
+        }
+        if (!stillSupported) {
+          onGround.current = false; // No longer supported, start falling
+        }
+      }
+
 
       // Apply gravity if not on ground
       if (!onGround.current) {
+        const previousPlayerY = player.position.y;
         verticalVelocity.current -= GRAVITY * delta;
         player.position.y += verticalVelocity.current * delta;
-      }
+        
+        // Landing Logic
+        let landedOnObject = false;
+        if (verticalVelocity.current <= 0) { // Only check for landing if moving downwards
+          // Check landing on buildings
+          for (const building of buildingsRef.current) {
+            if (!building.geometry.parameters || building === ground) continue;
+            const geomParams = building.geometry.parameters as any;
+            const buildingHeight = geomParams.height;
+            const buildingBaseY = building.position.y - buildingHeight / 2;
+            const buildingTopActualY = buildingBaseY + buildingHeight;
 
-      // Ground check and crouch height adjustment
-      if (player.position.y < effectivePlayerHeight) {
-        player.position.y = effectivePlayerHeight;
-        verticalVelocity.current = 0;
-        onGround.current = true;
-      } else if (player.position.y > effectivePlayerHeight && onGround.current && verticalVelocity.current === 0) {
-        // If somehow onGround is true but player is above designated height (e.g. after uncrouching on a slope)
-        // This case might need more robust slope handling in future, for now, snap to height
-        player.position.y = effectivePlayerHeight;
+            const halfWidth = geomParams.width ? geomParams.width / 2 : (geomParams.radiusTop || 0);
+            const halfDepth = geomParams.depth ? geomParams.depth / 2 : (geomParams.radiusTop || 0);
+            
+            const playerCurrentFeetY = player.position.y - currentEyeOffset;
+            const playerPreviousFeetY = previousPlayerY - currentEyeOffset;
+
+            if (
+              player.position.x >= building.position.x - halfWidth && player.position.x <= building.position.x + halfWidth &&
+              player.position.z >= building.position.z - halfDepth && player.position.z <= building.position.z + halfDepth &&
+              playerPreviousFeetY >= buildingTopActualY - 0.01 && // Was above or at top
+              playerCurrentFeetY <= buildingTopActualY + 0.05 // Is now at or slightly below top (allow for small penetration)
+            ) {
+              player.position.y = buildingTopActualY + currentEyeOffset;
+              verticalVelocity.current = 0;
+              onGround.current = true;
+              landedOnObject = true;
+              playerLastSurfaceY.current = buildingTopActualY;
+              break;
+            }
+          }
+
+          // Check landing on main ground (Y=0) if not landed on an object
+          const targetPlayerYOnMainGround = currentEyeOffset; // Eye level when feet at Y=0
+          if (!landedOnObject && player.position.y <= targetPlayerYOnMainGround ) {
+             if (previousPlayerY >= targetPlayerYOnMainGround && player.position.y <= targetPlayerYOnMainGround + 0.05) {
+                player.position.y = targetPlayerYOnMainGround;
+                verticalVelocity.current = 0;
+                onGround.current = true;
+                playerLastSurfaceY.current = 0;
+             }
+          }
+        }
       }
 
 
@@ -531,9 +613,9 @@ export default function ArenaDisplay() {
         direction.current.normalize();
 
         let currentMoveSpeed = PLAYER_SPEED;
-        if (isRunning.current && !isCrouching.current && onGround.current) { // Can only run if on ground and not crouching
+        if (isRunning.current && !isCrouching.current && onGround.current) { 
             currentMoveSpeed *= PLAYER_RUN_MULTIPLIER;
-        } else if (isCrouching.current && onGround.current) { // Crouch speed modification only on ground
+        } else if (isCrouching.current && onGround.current) { 
             currentMoveSpeed *= PLAYER_CROUCH_SPEED_MULTIPLIER;
         }
         
@@ -541,14 +623,16 @@ export default function ArenaDisplay() {
         if (moveLeft.current || moveRight.current) velocity.current.x -= direction.current.x * currentMoveSpeed * 10.0 * delta;
         
         const originalPlayerPosition = player.position.clone();
+        const playerEyeHeightForCollision = currentEyeOffset;
+
 
         const strafeAmount = -velocity.current.x * delta;
         if (Math.abs(strafeAmount) > 0.0001) {
             controlsRef.current.moveRight(strafeAmount);
-            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, effectivePlayerHeight)) {
-                player.position.x = originalPlayerPosition.x; // Revert X component
-                // player.position.y = originalPlayerPosition.y; // Keep Y from gravity/jump
-                player.position.z = originalPlayerPosition.z; // Keep Z original before this move
+            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
+                player.position.x = originalPlayerPosition.x; 
+                // player.position.y = originalPlayerPosition.y; // Y is managed by gravity/jump
+                player.position.z = originalPlayerPosition.z; 
             }
         }
 
@@ -557,20 +641,17 @@ export default function ArenaDisplay() {
         const forwardAmount = -velocity.current.z * delta;
         if (Math.abs(forwardAmount) > 0.0001) {
             controlsRef.current.moveForward(forwardAmount);
-            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, effectivePlayerHeight)) {
-                player.position.x = positionAfterStrafe.x; // Keep X from strafe result
-                // player.position.y = positionAfterStrafe.y; // Keep Y from gravity/jump
-                player.position.z = positionAfterStrafe.z; // Revert Z component
+            if (checkCollisionWithObjects(player, buildingsRef.current, PLAYER_COLLISION_RADIUS, playerEyeHeightForCollision)) {
+                player.position.x = positionAfterStrafe.x; 
+                // player.position.y = positionAfterStrafe.y; // Y is managed by gravity/jump
+                player.position.z = positionAfterStrafe.z; 
             }
         }
 
-        // Boundary checks (outer walls are also in buildingsRef.current now, so general collision handles them)
-        // Player XZ position cannot go beyond GROUND_SIZE/2 - PLAYER_COLLISION_RADIUS
         const halfGroundMinusRadius = GROUND_SIZE / 2 - PLAYER_COLLISION_RADIUS;
         player.position.x = Math.max(-halfGroundMinusRadius, Math.min(halfGroundMinusRadius, player.position.x));
         player.position.z = Math.max(-halfGroundMinusRadius, Math.min(halfGroundMinusRadius, player.position.z));
         
-        // Y position is managed by gravity and ground check, no explicit boundary clamp here for Y
       }
       prevTime.current = time;
       if (rendererRef.current && sceneRef.current && cameraRef.current) {
@@ -678,7 +759,7 @@ export default function ArenaDisplay() {
       directionalLightRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);  // Keep onKeyDown, onKeyUp, etc. out of deps for now to avoid re-binding issues, manage them carefully
+  }, []);  
 
   useEffect(() => {
     if (sceneRef.current && ambientLightRef.current && directionalLightRef.current) {
@@ -694,3 +775,6 @@ export default function ArenaDisplay() {
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
+
+
+    
