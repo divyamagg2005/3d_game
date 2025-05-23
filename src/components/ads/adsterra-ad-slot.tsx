@@ -17,66 +17,66 @@ const AdsterraAdSlot: React.FC<AdsterraAdSlotProps> = ({
   containerIdSuffix,
 }) => {
   const adContainerRef = useRef<HTMLDivElement>(null);
-  const adLoadedRef = useRef(false); // Prevent re-injecting scripts on HMR or unnecessary re-renders
+  // Use a ref to track the key of the ad that has been loaded in this component instance.
+  // This ensures that if the adKey prop changes, the ad will be reloaded.
+  const loadedAdKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     console.log(`AdsterraAdSlot: Effect run for ${containerIdSuffix} with key ${adKey}`);
-    if (adContainerRef.current && !adLoadedRef.current) {
-      console.log(`AdsterraAdSlot: Clearing container and injecting scripts for ${containerIdSuffix}`);
-      // Clear previous ad content if any (e.g., during HMR or if effect re-runs unexpectedly)
-      adContainerRef.current.innerHTML = '';
+    if (adContainerRef.current) {
+      // If the current adKey is different from the one already loaded,
+      // or if no ad has been loaded yet in this instance.
+      if (loadedAdKeyRef.current !== adKey) {
+        console.log(`AdsterraAdSlot: Clearing container and injecting scripts for ${containerIdSuffix} (adKey: ${adKey})`);
+        // Clear previous ad content
+        adContainerRef.current.innerHTML = '';
 
-      const atOptionsScript = document.createElement('script');
-      atOptionsScript.type = 'text/javascript';
-      // It's important to set innerHTML for the options script
-      // as Adsterra's invoke.js likely expects atOptions to be globally defined this way
-      atOptionsScript.innerHTML = `
-        atOptions = {
-          'key' : '${adKey}',
-          'format' : 'iframe',
-          'height' : ${configHeight},
-          'width' : ${configWidth},
-          'params' : {}
+        const atOptionsScript = document.createElement('script');
+        atOptionsScript.type = 'text/javascript';
+        atOptionsScript.innerHTML = `
+          atOptions = {
+            'key' : '${adKey}',
+            'format' : 'iframe',
+            'height' : ${configHeight},
+            'width' : ${configWidth},
+            'params' : {}
+          };
+          console.log('atOptions set for ${containerIdSuffix}:', JSON.parse(JSON.stringify(atOptions)));
+        `;
+        adContainerRef.current.appendChild(atOptionsScript);
+
+        const invokeScript = document.createElement('script');
+        invokeScript.type = 'text/javascript';
+        // Default async loading is generally preferred.
+        // invokeScript.async = false; 
+        invokeScript.src = `//www.highperformanceformat.com/${adKey}/invoke.js`;
+        invokeScript.onload = () => {
+          console.log(`AdsterraAdSlot: invoke.js loaded successfully for ${containerIdSuffix} (adKey: ${adKey})`);
         };
-        console.log('atOptions set for ${containerIdSuffix}:', JSON.parse(JSON.stringify(atOptions)));
-      `;
-      adContainerRef.current.appendChild(atOptionsScript);
-
-      const invokeScript = document.createElement('script');
-      invokeScript.type = 'text/javascript';
-      invokeScript.src = `//www.highperformanceformat.com/${adKey}/invoke.js`;
-      invokeScript.async = false; // Attempt to make it load and execute more sequentially
-      invokeScript.onload = () => {
-        console.log(`AdsterraAdSlot: invoke.js loaded successfully for ${containerIdSuffix}`);
-      };
-      invokeScript.onerror = () => {
-        console.error(`AdsterraAdSlot: invoke.js script loading error for slot ${containerIdSuffix}`);
-      };
-      adContainerRef.current.appendChild(invokeScript);
-      
-      adLoadedRef.current = true;
-      console.log(`AdsterraAdSlot: adLoadedRef set to true for ${containerIdSuffix}`);
-    } else {
-      if (!adContainerRef.current) {
-        console.warn(`AdsterraAdSlot: adContainerRef.current is null for ${containerIdSuffix}. Ad will not load.`);
-      } else if (adLoadedRef.current) {
-        console.log(`AdsterraAdSlot: Scripts already loaded for ${containerIdSuffix} (adLoadedRef is true), not re-injecting.`);
+        invokeScript.onerror = () => {
+          console.error(`AdsterraAdSlot: invoke.js script loading error for slot ${containerIdSuffix} (adKey: ${adKey})`);
+        };
+        adContainerRef.current.appendChild(invokeScript);
+        
+        loadedAdKeyRef.current = adKey; // Mark this adKey as loaded for this instance
+        console.log(`AdsterraAdSlot: loadedAdKeyRef set to ${adKey} for ${containerIdSuffix}`);
+      } else {
+        console.log(`AdsterraAdSlot: Ad for key ${adKey} already attempted for ${containerIdSuffix}, not re-injecting.`);
       }
+    } else {
+      console.warn(`AdsterraAdSlot: adContainerRef.current is null for ${containerIdSuffix}. Ad will not load.`);
     }
 
     // Cleanup function:
-    // Adsterra's scripts might create global variables or iframes.
-    // True cleanup is hard without knowing their internals.
-    // Setting adLoadedRef to false on unmount might cause re-injection if component re-mounts,
-    // which can be problematic for ad scripts. For now, we rely on adLoadedRef to prevent re-injection
-    // for the lifetime of this component instance given stable props.
+    // True cleanup of Adsterra's global effects or iframes is difficult without their API.
+    // Relying on the adKey change logic to re-initialize.
     return () => {
-        // If the component truly unmounts and might remount later with same props,
-        // and ads *should* reload, then adLoadedRef.current = false; might be needed here.
-        // But for now, assume stable mounting for each slot.
         // console.log(`AdsterraAdSlot: Cleanup for ${containerIdSuffix}`);
+        // If the component unmounts, loadedAdKeyRef will be gone with it.
+        // If we wanted to be super explicit, we could set loadedAdKeyRef.current = null here,
+        // but it's usually not necessary as a new instance will have it null anyway.
     };
-  }, [adKey, configHeight, configWidth, containerIdSuffix]); // Explicitly list dependencies
+  }, [adKey, configHeight, configWidth, containerIdSuffix]); // Dependencies for the effect
 
   // The div that will contain the ad scripts and the ad iframe
   return <div ref={adContainerRef} id={`ad-container-${containerIdSuffix}`} style={{ width: `${configWidth}px`, height: `${configHeight}px`, margin: 'auto' }} />;
