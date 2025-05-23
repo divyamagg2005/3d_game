@@ -6,6 +6,7 @@ import { GameLogo } from '@/components/icons/game-logo';
 import Link from 'next/link';
 import AdsterraAdSlot from '@/components/ads/adsterra-ad-slot';
 import { useState, useEffect } from 'react';
+import PlayerStatsDisplay from '@/components/game/player-stats-display'; // Import the new component
 
 type MainLayoutProps = {
   children: ReactNode;
@@ -13,11 +14,9 @@ type MainLayoutProps = {
 
 export default function MainLayout({ children }: MainLayoutProps) {
   const [isClient, setIsClient] = useState(false);
-  // isInFullscreen state and related useEffect removed
 
   useEffect(() => {
     setIsClient(true);
-    // Fullscreen event listener setup removed
   }, []);
 
   return (
@@ -33,11 +32,11 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </div>
       </header>
 
-      <main className="relative flex flex-row flex-grow">
-        <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-r border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
-          {isClient && ( 
+      <main className="relative flex flex-row flex-grow overflow-hidden"> {/* Added overflow-hidden here */}
+        <aside className="w-64 bg-card p-4 flex-col items-center justify-start text-muted-foreground border-r border-border/40 transition-all duration-300 ease-in-out hidden md:flex overflow-y-auto">
+          {isClient && (
             <AdsterraAdSlot
-              adKey="b489cb229500818212b8f74504664a80" 
+              adKey="b489cb229500818212b8f74504664a80"
               configWidth={160}
               configHeight={600}
               containerIdSuffix="left-sidebar"
@@ -46,20 +45,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </aside>
 
         <div
-          className="flex flex-col bg-background flex-grow overflow-hidden" // Reverted to simpler styling
+          className="flex flex-col bg-background flex-grow overflow-hidden"
         >
           {children}
         </div>
 
-        <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-l border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
-           {isClient && (
-            <AdsterraAdSlot
-                adKey="b489cb229500818212b8f74504664a80"
-                configWidth={160}
-                configHeight={600}
-                containerIdSuffix="right-sidebar"
-              />
-           )}
+        <aside className="w-64 bg-card p-1 flex flex-col items-center text-muted-foreground border-l border-border/40 transition-all duration-300 ease-in-out hidden md:flex overflow-y-auto">
+          {/* Right sidebar content - Player Stats */}
+          {isClient && <PlayerStatsDisplay />}
         </aside>
       </main>
     </div>
