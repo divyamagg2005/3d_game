@@ -75,6 +75,7 @@ export default function GameUIOverlay() {
           <p className="text-lg">Press SPACE to Jump (up to 4 times).</p>
           <p className="text-lg">Hold SHIFT to Run.</p>
           <p className="text-lg">Press CTRL or C to Crouch.</p>
+          <p className="text-lg">Press F to toggle Torch.</p>
           <p className="text-lg">Press ESC to release mouse.</p>
           <p className="text-lg mt-2 font-semibold">Press P to Pause/Resume game.</p>
         </div>
@@ -93,3 +94,4 @@ export default function GameUIOverlay() {
 
 
     
+

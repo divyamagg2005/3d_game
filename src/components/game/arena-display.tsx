@@ -29,10 +29,10 @@ interface DayNightPhase {
 const dayNightCycleConfig = {
   cycleDuration: 120, // 120 seconds for a full cycle (2 minutes)
   phases: [
-    { name: 'Day', duration: 0.4, ambient: [0xffffff, 1.8], directional: [0xffffff, 2.5], background: 0xCAEFFF, fog: 0xCAEFFF }, // Bright day
-    { name: 'Dusk', duration: 0.15, ambient: [0xffaa77, 0.4], directional: [0xffaa77, 0.5], background: 0x403050, fog: 0x403050 }, // Dimming dusk
-    { name: 'Night', duration: 0.3, ambient: [0x101020, 0.02], directional: [0x151525, 0.05], background: 0x00000A, fog: 0x00000A }, // Dark night
-    { name: 'Dawn', duration: 0.15, ambient: [0x88aabb, 0.3], directional: [0x88aabb, 0.4], background: 0x304060, fog: 0x304060 }, // Brightening dawn
+    { name: 'Day', duration: 0.4, ambient: [0xffffff, 2.5], directional: [0xffffff, 3.0], background: 0x87CEEB, fog: 0x87CEEB }, // Super bright day
+    { name: 'Dusk', duration: 0.15, ambient: [0xffaa77, 0.3], directional: [0xffaa77, 0.4], background: 0x403050, fog: 0x403050 }, // Dimming dusk
+    { name: 'Night', duration: 0.3, ambient: [0x050510, 0.01], directional: [0x101020, 0.02], background: 0x000005, fog: 0x000005 }, // Very dark night
+    { name: 'Dawn', duration: 0.15, ambient: [0x88aabb, 0.2], directional: [0x88aabb, 0.3], background: 0x304060, fog: 0x304060 }, // Brightening dawn
   ] as DayNightPhase[],
 };
 
@@ -106,6 +106,7 @@ export default function ArenaDisplay() {
   const isRunning = useRef(false);
   const isCrouching = useRef(false);
   const jumpsMadeInAirRef = useRef(0);
+  const isTorchOnRef = useRef(false);
 
 
   const direction = useRef(new THREE.Vector3());
@@ -114,6 +115,8 @@ export default function ArenaDisplay() {
 
   const ambientLightRef = useRef<THREE.AmbientLight | null>(null);
   const directionalLightRef = useRef<THREE.DirectionalLight | null>(null);
+  const spotLightRef = useRef<THREE.SpotLight | null>(null);
+  const spotLightTargetRef = useRef<THREE.Object3D | null>(null);
   const buildingsRef = useRef<THREE.Mesh[]>([]);
   const playerLastSurfaceY = useRef(0); // Stores the Y of the surface player is on (feet level)
 
@@ -174,6 +177,12 @@ export default function ArenaDisplay() {
          if (!isPaused.current && controlsRef.current?.isLocked) {
             isCrouching.current = !isCrouching.current;
          }
+        break;
+      case 'KeyF':
+        if (!isPaused.current && controlsRef.current?.isLocked && spotLightRef.current) {
+            isTorchOnRef.current = !isTorchOnRef.current;
+            spotLightRef.current.visible = isTorchOnRef.current;
+        }
         break;
       case 'KeyP': {
         isPaused.current = !isPaused.current;
@@ -350,6 +359,24 @@ export default function ArenaDisplay() {
     directionalLightRef.current.shadow.camera.top = GROUND_SIZE;
     directionalLightRef.current.shadow.camera.bottom = -GROUND_SIZE;
     scene.add(directionalLightRef.current);
+
+    // Torch Spotlight
+    spotLightRef.current = new THREE.SpotLight(0xffffff, 1.5, 70, Math.PI / 7, 0.3, 1.5);
+    spotLightRef.current.visible = false; // Off by default
+    spotLightRef.current.position.set(0, 0, 0); // Position relative to camera
+    // spotLightRef.current.castShadow = true; // Optional: can be performance intensive
+    // spotLightRef.current.shadow.mapSize.width = 512;
+    // spotLightRef.current.shadow.mapSize.height = 512;
+    // spotLightRef.current.shadow.camera.near = 0.5;
+    // spotLightRef.current.shadow.camera.far = 70;
+
+    camera.add(spotLightRef.current); // Add spotlight as child of camera
+
+    spotLightTargetRef.current = new THREE.Object3D();
+    spotLightTargetRef.current.position.set(0, 0, -1); // Target is 1 unit in front of camera
+    camera.add(spotLightTargetRef.current); // Add target as child of camera
+    spotLightRef.current.target = spotLightTargetRef.current;
+
 
     const textureLoader = new THREE.TextureLoader();
     const textureLoadError = (textureName: string) => (event: ErrorEvent | Event) => {
@@ -543,6 +570,10 @@ export default function ArenaDisplay() {
       if (onGround.current) {
         let stillSupported = false;
         const playerFeetY = player.position.y - currentEyeOffset;
+        // Ensure Y position is clamped to surface
+        player.position.y = playerLastSurfaceY.current + currentEyeOffset;
+        verticalVelocity.current = 0;
+
 
         // Check if still on main ground
         if (Math.abs(playerFeetY - 0) < 0.01 && Math.abs(player.position.y - (playerLastSurfaceY.current + currentEyeOffset)) < 0.01) {
@@ -747,6 +778,16 @@ export default function ArenaDisplay() {
         }
         controlsRef.current.dispose();
       }
+      
+      if (spotLightRef.current) {
+        // If spotlight was added to camera, camera.remove will handle it from scene graph
+        // We might need to dispose of its geometry/material if it had any (SpotLightHelper does)
+        // For a raw SpotLight, disposing the light itself is usually not needed unless it has shadow maps
+        if(spotLightRef.current.shadow && spotLightRef.current.shadow.map) {
+            spotLightRef.current.shadow.map.dispose();
+        }
+      }
+      // SpotLightTarget is just an Object3D, usually doesn't need explicit disposal unless it has complex children
 
       allTextures.forEach(texture => { if (texture) texture.dispose() });
       placeholderBottomMaterial.dispose();
@@ -783,6 +824,8 @@ export default function ArenaDisplay() {
       controlsRef.current = null;
       ambientLightRef.current = null;
       directionalLightRef.current = null;
+      spotLightRef.current = null;
+      spotLightTargetRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onKeyDown, onKeyUp, clickToLockHandler, onLockHandler, onUnlockHandler]);
@@ -790,7 +833,11 @@ export default function ArenaDisplay() {
   useEffect(() => {
     if (sceneRef.current && ambientLightRef.current && directionalLightRef.current) {
       sceneRef.current.background = dayNightCycle.currentPhaseDetails.backgroundColor;
-      sceneRef.current.fog = new THREE.Fog(dayNightCycle.currentPhaseDetails.fogColor, GROUND_SIZE / 6, GROUND_SIZE * 0.75);
+      if(sceneRef.current.fog) { // Check if fog exists before updating
+        (sceneRef.current.fog as THREE.Fog).color = dayNightCycle.currentPhaseDetails.fogColor;
+      } else { // Initialize fog if it doesn't exist
+        sceneRef.current.fog = new THREE.Fog(dayNightCycle.currentPhaseDetails.fogColor, GROUND_SIZE / 6, GROUND_SIZE * 0.75);
+      }
       ambientLightRef.current.color = dayNightCycle.currentPhaseDetails.ambientColor;
       ambientLightRef.current.intensity = dayNightCycle.currentPhaseDetails.ambientIntensity;
       directionalLightRef.current.color = dayNightCycle.currentPhaseDetails.directionalColor;
@@ -801,3 +848,4 @@ export default function ArenaDisplay() {
 
   return <div ref={mountRef} className="w-full h-full cursor-grab focus:cursor-grabbing" tabIndex={-1} />;
 }
+
