@@ -34,9 +34,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
       <main className="relative flex flex-row flex-grow">
         <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-r border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
-          {isClient && ( // Only render AdsterraAdSlot on the client
+          {isClient && ( 
             <AdsterraAdSlot
-              adKey="b489cb229500818212b8f74504664a80"
+              adKey="b489cb229500818212b8f74504664a80" // Use your Adsterra key for the left sidebar
               configWidth={160}
               configHeight={600}
               containerIdSuffix="left-sidebar"
@@ -52,13 +52,15 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
         <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-l border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
            {isClient && (
-            <div className="w-full h-full flex items-center justify-center bg-muted/10 text-muted-foreground text-sm p-4 text-center rounded-md border border-dashed border-border">
-              Your Ad Code for the Right Sidebar (e.g., from a different provider) can be placed here.
-            </div>
+            <AdsterraAdSlot
+              adKey="b489cb229500818212b8f74504664a80" // IMPORTANT: Replace with a NEW, UNIQUE key from Adsterra for the right sidebar
+              configWidth={160}
+              configHeight={600}
+              containerIdSuffix="right-sidebar"
+            />
           )}
         </aside>
       </main>
-      {/* Footer removed */}
     </div>
   );
 }
