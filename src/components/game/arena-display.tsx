@@ -574,6 +574,12 @@ export default function ArenaDisplay() {
           jumpsMadeInAirRef.current = 0; // Reset air jumps if slid off an edge
         }
       }
+      
+      // If player is on ground, ensure their Y position is correctly clamped and vertical velocity is zero.
+      if (onGround.current) {
+        player.position.y = playerLastSurfaceY.current + currentEyeOffset;
+        verticalVelocity.current = 0;
+      }
 
 
       if (!onGround.current) {
