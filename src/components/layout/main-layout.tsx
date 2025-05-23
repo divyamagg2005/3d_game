@@ -5,12 +5,19 @@ import type { ReactNode } from 'react';
 import { GameLogo } from '@/components/icons/game-logo';
 import Link from 'next/link';
 import AdsterraAdSlot from '@/components/ads/adsterra-ad-slot';
+import { useState, useEffect } from 'react';
 
 type MainLayoutProps = {
   children: ReactNode;
 };
 
 export default function MainLayout({ children }: MainLayoutProps) {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -27,12 +34,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
       <main className="relative flex flex-row flex-grow">
         <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-r border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
-          <AdsterraAdSlot
-            adKey="b489cb229500818212b8f74504664a80"
-            configWidth={160}
-            configHeight={600}
-            containerIdSuffix="left-sidebar"
-          />
+          {isClient && ( // Only render AdsterraAdSlot on the client
+            <AdsterraAdSlot
+              adKey="b489cb229500818212b8f74504664a80"
+              configWidth={160}
+              configHeight={600}
+              containerIdSuffix="left-sidebar"
+            />
+          )}
         </aside>
 
         <div
@@ -42,12 +51,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </div>
 
         <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-l border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
-          <AdsterraAdSlot
-            adKey="b489cb229500818212b8f74504664a80" // Using the same adKey. If Adsterra needs different keys for different slots, update this.
-            configWidth={160}
-            configHeight={600}
-            containerIdSuffix="right-sidebar"
-          />
+           {isClient && ( // Only render AdsterraAdSlot on the client
+            <AdsterraAdSlot
+              adKey="b489cb229500818212b8f74504664a80" // Using the same adKey. If Adsterra needs different keys for different slots, update this.
+              configWidth={160}
+              configHeight={600}
+              containerIdSuffix="right-sidebar"
+            />
+          )}
         </aside>
       </main>
       <footer className="py-6 md:px-8 md:py-0 bg-background border-t border-border/40">
