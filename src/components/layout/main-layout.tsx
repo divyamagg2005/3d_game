@@ -53,9 +53,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
         <aside className="w-64 bg-card p-4 flex-col items-center justify-center text-muted-foreground border-l border-border/40 transition-all duration-300 ease-in-out hidden md:flex">
            {isClient && (
             <AdsterraAdSlot
-              adKey="b489cb229500818212b8f74504664a80" // Changed back to the original key
+              adKey="23c351cbde922690a63e148e3463a2e2" // Use the new key for 160x300
               configWidth={160}
-              configHeight={600} // Changed height back to 600
+              configHeight={300} // Set height to 300
               containerIdSuffix="right-sidebar"
             />
           )}
